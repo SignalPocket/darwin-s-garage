@@ -10,6 +10,7 @@ import {
   DEFAULT_TERRAIN_SETTING,
   courseSettingsFromTrackId,
 } from './track.js';
+import { EVOLUTION_DEFAULTS, POPULATION_SIZE_LIMITS } from './evolution.js';
 import { createRun, runAllAsync, bestEver, fitnessCurve } from './history.js';
 import { replayGenome } from './simulate.js';
 import { createRenderer, cameraTarget, PALETTE } from './render.js';
@@ -53,6 +54,7 @@ const dom = {
   seedRun: el('seed-run'),
   seedInput: el('seed-input'),
   generationsInput: el('generations-input'),
+  populationSizeInput: el('population-size-input'),
   courseLength: el('course-length'),
   courseRoughness: el('course-roughness'),
   courseSteepness: el('course-steepness'),
@@ -77,6 +79,7 @@ const renderer = createRenderer(dom.scene);
 const audio = createAudio();
 const SEED_PARAM = 'seed';
 const GENERATIONS_PARAM = 'generations';
+const POPULATION_SIZE_PARAM = 'populationSize';
 const COURSE_LENGTH_PARAM = 'courseLength';
 const ROUGHNESS_PARAM = 'roughness';
 const STEEPNESS_PARAM = 'steepness';
@@ -102,6 +105,16 @@ function readInitialGenerations() {
   return Number.isSafeInteger(generations) && generations >= 1
     ? generations
     : RUN_DEFAULT_GENERATIONS;
+}
+
+function readInitialPopulationSize() {
+  const url = new URL(window.location.href);
+  return readIntegerParam(
+    url.searchParams.get(POPULATION_SIZE_PARAM),
+    EVOLUTION_DEFAULTS.populationSize,
+    POPULATION_SIZE_LIMITS.min,
+    POPULATION_SIZE_LIMITS.max,
+  );
 }
 
 function readInitialCourse() {
@@ -165,6 +178,7 @@ function randomSeed() {
 
 const initialSeed = readInitialSeed();
 const initialGenerations = readInitialGenerations();
+const initialPopulationSize = readInitialPopulationSize();
 const initialCourse = readInitialCourse();
 const track = createDefaultTrack(initialCourse);
 
@@ -172,6 +186,7 @@ const state = {
   run: createRun(track, {
     seed: initialSeed,
     generations: initialGenerations,
+    populationSize: initialPopulationSize,
   }),
   generation: 0,
   individual: null, // null = "the best of this generation"
@@ -663,6 +678,7 @@ function buildShareUrl(genome, generation) {
     shareUrl({ genome, generation, trackId: state.run.track.id }, window.location.href.split('?')[0]),
   );
   url.searchParams.set(SEED_PARAM, String(state.run.track.seed));
+  url.searchParams.set(POPULATION_SIZE_PARAM, String(state.run.config.populationSize));
   url.searchParams.set(COURSE_LENGTH_PARAM, String(state.run.track.length));
   url.searchParams.set(ROUGHNESS_PARAM, String(state.run.track.roughness));
   url.searchParams.set(STEEPNESS_PARAM, String(state.run.track.steepness));
@@ -686,6 +702,7 @@ async function writeShareLink(url) {
 function wireControls() {
   dom.seedInput.value = String(initialSeed);
   dom.generationsInput.value = String(initialGenerations);
+  dom.populationSizeInput.value = String(initialPopulationSize);
   dom.courseLength.value = String(initialCourse.length);
   dom.courseRoughness.value = String(initialCourse.roughness);
   dom.courseSteepness.value = String(initialCourse.steepness);
@@ -714,6 +731,18 @@ function wireControls() {
     if (!Number.isSafeInteger(generations) || generations < 1) {
       dom.generationsInput.setCustomValidity('Enter a positive whole number.');
       dom.generationsInput.reportValidity();
+      return;
+    }
+    const populationSize = Number(dom.populationSizeInput.value);
+    if (
+      !Number.isInteger(populationSize) ||
+      populationSize < POPULATION_SIZE_LIMITS.min ||
+      populationSize > POPULATION_SIZE_LIMITS.max
+    ) {
+      dom.populationSizeInput.setCustomValidity(
+        `Enter a whole number from ${POPULATION_SIZE_LIMITS.min} to ${POPULATION_SIZE_LIMITS.max}.`,
+      );
+      dom.populationSizeInput.reportValidity();
       return;
     }
     const courseLength = Number(dom.courseLength.value);
@@ -745,11 +774,13 @@ function wireControls() {
     }
     dom.seedInput.setCustomValidity('');
     dom.generationsInput.setCustomValidity('');
+    dom.populationSizeInput.setCustomValidity('');
     dom.courseLength.setCustomValidity('');
     dom.courseRoughness.setCustomValidity('');
     const url = new URL(window.location.href);
     url.searchParams.set(SEED_PARAM, String(seed));
     url.searchParams.set(GENERATIONS_PARAM, String(generations));
+    url.searchParams.set(POPULATION_SIZE_PARAM, String(populationSize));
     url.searchParams.set(COURSE_LENGTH_PARAM, String(courseLength));
     url.searchParams.set(ROUGHNESS_PARAM, String(roughness));
     url.searchParams.set(STEEPNESS_PARAM, String(steepness));

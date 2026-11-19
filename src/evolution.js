@@ -12,6 +12,8 @@ import {
 } from './genome.js';
 import { randomInt, randomFloat } from './rng.js';
 
+export const POPULATION_SIZE_LIMITS = Object.freeze({ min: 2, max: 256 });
+
 export const EVOLUTION_DEFAULTS = Object.freeze({
   populationSize: 24,
   // Fraction of the population copied into the next generation untouched. Without
@@ -37,8 +39,14 @@ export const EVOLUTION_DEFAULTS = Object.freeze({
 
 /** A generation-0 population of pure random genomes. */
 export function createPopulation(rng, size = EVOLUTION_DEFAULTS.populationSize) {
-  if (!Number.isInteger(size) || size < 2) {
-    throw new RangeError(`createPopulation: size must be an integer >= 2, got ${size}`);
+  if (
+    !Number.isInteger(size) ||
+    size < POPULATION_SIZE_LIMITS.min ||
+    size > POPULATION_SIZE_LIMITS.max
+  ) {
+    throw new RangeError(
+      `createPopulation: size must be an integer from ${POPULATION_SIZE_LIMITS.min} to ${POPULATION_SIZE_LIMITS.max}, got ${size}`,
+    );
   }
   return Array.from({ length: size }, () => createRandomGenome(rng));
 }

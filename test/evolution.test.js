@@ -29,7 +29,7 @@ test('createPopulation is deterministic for a seed and varied within a generatio
 });
 
 test('createPopulation rejects sizes below two or non-integers', () => {
-  for (const bad of [1, 0, -5, 2.5, NaN]) {
+  for (const bad of [1, 0, -5, 2.5, NaN, 257]) {
     assert.throws(() => createPopulation(createRng(1), bad), RangeError);
   }
 });

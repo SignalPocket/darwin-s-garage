@@ -35,6 +35,12 @@ test('createRun rejects a non-positive generation count', () => {
   }
 });
 
+test('createRun rejects population sizes outside the practical range', () => {
+  for (const populationSize of [1, 0, 1.5, 257]) {
+    assert.throws(() => createRun(track, { populationSize }), RangeError);
+  }
+});
+
 test('runGeneration records a full generation and indexes it', () => {
   const run = smallRun();
   const generation = runGeneration(run);

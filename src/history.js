@@ -5,7 +5,13 @@
 // main thread responsive.
 
 import { createRng } from './rng.js';
-import { createPopulation, evolvePopulation, rankedIndices, EVOLUTION_DEFAULTS } from './evolution.js';
+import {
+  createPopulation,
+  evolvePopulation,
+  rankedIndices,
+  EVOLUTION_DEFAULTS,
+  POPULATION_SIZE_LIMITS,
+} from './evolution.js';
 import { simulateGenome, createSimulation } from './simulate.js';
 import { isValidTrack, validateTrack } from './track.js';
 import { cloneGenome } from './genome.js';
@@ -38,6 +44,15 @@ export function createRun(track, options = {}) {
   const config = { ...RUN_DEFAULTS, ...EVOLUTION_DEFAULTS, ...options };
   if (!Number.isInteger(config.generations) || config.generations < 1) {
     throw new RangeError(`createRun: generations must be a positive integer, got ${config.generations}`);
+  }
+  if (
+    !Number.isInteger(config.populationSize) ||
+    config.populationSize < POPULATION_SIZE_LIMITS.min ||
+    config.populationSize > POPULATION_SIZE_LIMITS.max
+  ) {
+    throw new RangeError(
+      `createRun: populationSize must be an integer from ${POPULATION_SIZE_LIMITS.min} to ${POPULATION_SIZE_LIMITS.max}, got ${config.populationSize}`,
+    );
   }
   return {
     track,

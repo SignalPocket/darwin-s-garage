@@ -27,8 +27,8 @@ of junk that flops, flips, and goes nowhere on the rubble field.
 From there a real genetic algorithm takes over. Tournament selection picks parents, crossover
 shuffles individual chassis, wheel-trait, and wheel-outline genes with the run's seeded RNG and
 swaps contiguous segments. Mutation nudges wheel position, radius, torque, and chassis geometry.
-Set any course length from 100 to 30,000 metres, then independently adjust roughness, steepness,
-and obstacle frequency. The run seed drives both the starting population and terrain generation,
+Choose 2–256 cars per generation, and set any course length from 100 to 30,000 metres. Adjust
+roughness, steepness, and obstacle frequency independently. The run seed drives both the starting population and terrain generation,
 so replaying the same seed and settings recreates the same experiment. Longer routes get
 deterministic rolling hills and rubble, and their simulation time budget scales with the finish
 distance.
