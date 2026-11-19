@@ -5,6 +5,8 @@ import {
   createRandomGenome,
   normalizeGenome,
   isValidGenome,
+  isViableGenome,
+  assessGenomeViability,
   cloneGenome,
   clamp,
   GENOME_LIMITS,
@@ -58,6 +60,12 @@ test('createRandomGenome varies across seeds', () => {
 test('createRandomGenome always produces a genome that validates', () => {
   for (let seed = 0; seed < 300; seed += 1) {
     assert.ok(isValidGenome(createRandomGenome(createRng(seed))));
+  }
+});
+
+test('random starter cars meet the minimum chassis and wheel geometry', () => {
+  for (let seed = 0; seed < 1000; seed += 1) {
+    assert.ok(isViableGenome(createRandomGenome(createRng(seed))), `seed ${seed} was unviable`);
   }
 });
 
@@ -180,6 +188,44 @@ test('normalizeGenome rejects a chassis whose vertices all coincide', () => {
       }),
     RangeError,
   );
+});
+
+test('viability rejects a tiny doodle chassis that is structurally valid', () => {
+  const doodle = normalizeGenome({
+    chassis: [
+      { x: 28, y: -35 },
+      { x: -4, y: 19 },
+      { x: 28, y: -29 },
+      { x: -20, y: -21 },
+    ],
+    wheels: twoWheels(),
+  });
+  assert.equal(isValidGenome(doodle), true);
+  assert.deepEqual(assessGenomeViability(doodle), {
+    viable: false,
+    reason: 'chassis-too-small',
+  });
+});
+
+test('viability rejects wheel outlines that collapse into thin lines', () => {
+  const thinWheel = normalizeGenome({
+    chassis: ring(5),
+    wheels: [
+      {
+        vertexIndex: 0,
+        radius: 20,
+        torque: 0.05,
+        shape: [{ x: -1, y: 0 }, { x: 0, y: 0.01 }, { x: 1, y: 0 }],
+      },
+      { vertexIndex: 1, radius: 20, torque: 0.05 },
+    ],
+  });
+  assert.equal(isValidGenome(thinWheel), true);
+  assert.deepEqual(assessGenomeViability(thinWheel), {
+    viable: false,
+    reason: 'wheel-outline-too-thin',
+    wheelIndex: 0,
+  });
 });
 
 test('normalizeGenome rejects genomes below the structural minimums', () => {

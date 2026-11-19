@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRng } from '../src/rng.js';
-import { createRandomGenome, normalizeGenome } from '../src/genome.js';
-import { mutate, crossover } from '../src/evolution.js';
+import { createRandomGenome, normalizeGenome, isViableGenome } from '../src/genome.js';
+import { evolvePopulation } from '../src/evolution.js';
 import { createDefaultTrack, DEFAULT_TRACK_ID } from '../src/track.js';
 import { simulateGenome } from '../src/simulate.js';
 import { encodeShare, decodeShare, shareUrl, readShare, SHARE_PARAM } from '../src/share.js';
@@ -104,6 +104,22 @@ test('encodeShare rejects an invalid genome rather than emitting a dead link', (
   assert.throws(() => encodeShare({ genome: { chassis: [], wheels: [] } }), Error);
 });
 
+test('encodeShare refuses a structurally valid but unviable doodle car', () => {
+  const genome = normalizeGenome({
+    chassis: [
+      { x: 28, y: -35 },
+      { x: -4, y: 19 },
+      { x: 28, y: -29 },
+      { x: -20, y: -21 },
+    ],
+    wheels: [
+      { vertexIndex: 0, radius: 20, torque: 0.05 },
+      { vertexIndex: 1, radius: 20, torque: 0.05 },
+    ],
+  });
+  assert.throws(() => encodeShare({ genome }), /unviable geometry/);
+});
+
 test('decodeShare reports a readable error for corrupted input, never throwing', () => {
   const corrupted = [
     '',
@@ -182,6 +198,16 @@ test('decodeShare rejects a payload describing a degenerate, zero-area chassis',
   assert.match(result.error, /couldn't be built/);
 });
 
+test('decodeShare rejects a structurally valid but unviable doodle car', () => {
+  const result = decodeShare(
+    signedLink(
+      '1|0|default-hill|28,-35;-4,19;28,-29;-20,-21|0,20,0.05;1,20,0.05',
+    ),
+  );
+  assert.equal(result.ok, false);
+  assert.match(result.error, /unviable geometry/);
+});
+
 test('decodeShare rejects a payload with a negative or non-integer generation', () => {
   // encodeShare guards this on the way out, but a hand-edited link skips the
   // encoder entirely, so decodeShare needs its own floor on the raw field.
@@ -239,11 +265,18 @@ test('encoding is lossless: the decoded genome is identical, not merely similar'
 });
 
 test('a bred genome also survives a round trip unchanged', () => {
-  // Mutation and crossover must not knock a genome off the encodable grid.
+  // Only viable offspring enter a generation or receive share links.
   const rng = createRng(4);
-  let genome = genomeFor(2);
+  let population = Array.from({ length: 8 }, (_, index) => genomeFor(index + 2));
   for (let i = 0; i < 30; i += 1) {
-    genome = mutate(crossover(genome, genomeFor(i + 50), rng), rng, { mutationRate: 1 });
+    population = evolvePopulation(
+      population,
+      population.map((_, index) => index),
+      rng,
+      { mutationRate: 1 },
+    );
+    assert.ok(population.every(isViableGenome));
+    const genome = population.at(-1);
     const decoded = decodeShare(encodeShare({ genome }));
     assert.equal(decoded.ok, true);
     assert.deepEqual(decoded.value.genome, genome, `bred genome ${i} did not round-trip`);

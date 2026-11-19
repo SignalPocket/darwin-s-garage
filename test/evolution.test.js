@@ -1,13 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRng } from '../src/rng.js';
-import { createRandomGenome, isValidGenome, normalizeGenome } from '../src/genome.js';
+import {
+  createRandomGenome,
+  isValidGenome,
+  isViableGenome,
+  normalizeGenome,
+} from '../src/genome.js';
 import {
   createPopulation,
   selectParent,
   crossover,
   mutate,
   evolvePopulation,
+  evolvePopulationWithStats,
   rankedIndices,
   bestIndex,
   EVOLUTION_DEFAULTS,
@@ -19,6 +25,7 @@ test('createPopulation returns the requested number of valid genomes', () => {
   const population = pop(24);
   assert.equal(population.length, 24);
   assert.ok(population.every(isValidGenome));
+  assert.ok(population.every(isViableGenome));
 });
 
 test('createPopulation is deterministic for a seed and varied within a generation', () => {
@@ -320,6 +327,68 @@ test('evolvePopulation carries the elites through untouched', () => {
   const next = evolvePopulation(population, fitnesses, createRng(5), { eliteCount: 2 });
   assert.deepEqual(next[0], population[9]);
   assert.deepEqual(next[1], population[8]);
+});
+
+test('unviable parents cannot be selected, carried as elites, or enter a child population', () => {
+  const viableA = createRandomGenome(createRng(31));
+  const viableB = createRandomGenome(createRng(32));
+  const unviable = normalizeGenome({
+    chassis: [
+      { x: 28, y: -35 },
+      { x: -4, y: 19 },
+      { x: 28, y: -29 },
+      { x: -20, y: -21 },
+    ],
+    wheels: viableA.wheels.slice(0, 2),
+  });
+  assert.equal(isViableGenome(unviable), false);
+
+  const result = evolvePopulationWithStats(
+    [viableA, unviable, viableB, unviable],
+    [10, 100000, 20, 200000],
+    createRng(23),
+    { mutationRate: 0, crossoverRate: 0, eliteCount: 1 },
+  );
+  assert.equal(result.population.length, 4);
+  assert.ok(result.population.every(isViableGenome));
+  assert.deepEqual(result.population[0], viableB);
+});
+
+test('a population with no viable parents is replaced with viable random cars', () => {
+  const viable = createRandomGenome(createRng(34));
+  const unviable = normalizeGenome({
+    chassis: [
+      { x: 28, y: -35 },
+      { x: -4, y: 19 },
+      { x: 28, y: -29 },
+      { x: -20, y: -21 },
+    ],
+    wheels: viable.wheels.slice(0, 2),
+  });
+  const next = evolvePopulation([unviable, unviable], [2, 1], createRng(35));
+  assert.equal(next.length, 2);
+  assert.ok(next.every(isViableGenome));
+});
+
+test('evolution counts and excludes degenerate offspring candidates', () => {
+  const population = pop(24, 1);
+  const result = evolvePopulationWithStats(
+    population,
+    population.map((_, index) => index),
+    createRng(2),
+    {
+      mutationRate: 1,
+      vertexJitter: 200,
+      wheelShapeJitter: 1,
+      wheelShapeMutationChance: 1,
+      vertexCountMutationChance: 1,
+      crossoverRate: 1,
+      eliteCount: 0,
+    },
+  );
+  assert.ok(result.rejectedUnviableCount > 0);
+  assert.equal(result.population.length, population.length);
+  assert.ok(result.population.every(isViableGenome));
 });
 
 test('with mutation and crossover off, evolvePopulation reproduces selected parents unchanged', () => {

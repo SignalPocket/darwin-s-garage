@@ -7,7 +7,7 @@
 import { createRng } from './rng.js';
 import {
   createPopulation,
-  evolvePopulation,
+  evolvePopulationWithStats,
   rankedIndices,
   EVOLUTION_DEFAULTS,
   POPULATION_SIZE_LIMITS,
@@ -15,7 +15,7 @@ import {
 } from './evolution.js';
 import { simulateGenome, createSimulation } from './simulate.js';
 import { isValidTrack, validateTrack } from './track.js';
-import { cloneGenome } from './genome.js';
+import { assessGenomeViability, cloneGenome } from './genome.js';
 
 export const RUN_DEFAULTS = Object.freeze({
   // Seed 1 is the shipped demo. New cars start with five chassis vertices and
@@ -92,9 +92,7 @@ function populationFor(run) {
  */
 export function runGeneration(run) {
   const population = populationFor(run);
-  const results = population.map((genome) =>
-    simulateGenome(genome, run.track, { continueAfterFlip: run.config.continueAfterFlip }),
-  );
+  const results = population.map((genome) => evaluateGenome(genome, run));
   return recordGeneration(run, population, results);
 }
 
@@ -122,6 +120,11 @@ export async function runGenerationAsync(run, options = {}) {
   };
 
   for (const genome of population) {
+    const viability = assessGenomeViability(genome);
+    if (!viability.viable) {
+      results.push(unviableResult(viability.reason));
+      continue;
+    }
     // Building a car and its terrain is itself ~9ms of work, so the budget is
     // checked before setup too — otherwise setup and the first ticks stack into
     // one oversized block.
@@ -133,7 +136,7 @@ export async function runGenerationAsync(run, options = {}) {
       sim.step(ticksPerSlice);
       await spendBudget();
     }
-    results.push(sim.result);
+    results.push({ ...sim.result, viable: true, viabilityReason: null });
   }
   return recordGeneration(run, population, results);
 }
@@ -142,30 +145,93 @@ export async function runGenerationAsync(run, options = {}) {
 function recordGeneration(run, population, results) {
   const index = run.history.length;
   const fitnesses = results.map((r) => r.fitness);
-  const ranked = rankedIndices(fitnesses);
-  const best = ranked[0];
+  const viableIndices = results
+    .map((result, resultIndex) => (result.viable ? resultIndex : -1))
+    .filter((resultIndex) => resultIndex >= 0);
+  const unviableIndices = results
+    .map((result, resultIndex) => (!result.viable ? resultIndex : -1))
+    .filter((resultIndex) => resultIndex >= 0);
+  const ranked = [
+    ...rankedIndices(viableIndices.map((resultIndex) => fitnesses[resultIndex])).map(
+      (viableRank) => viableIndices[viableRank],
+    ),
+    ...unviableIndices,
+  ];
+  const best = viableIndices.length > 0 ? ranked[0] : null;
+  const viableCount = viableIndices.length;
+  const unviableCount = unviableIndices.length;
+  const outcomeCounts = {
+    finishers: results.filter((result) => result.finished).length,
+    stalled: results.filter((result) => result.failReason === 'stalled').length,
+    flipped: results.filter((result) => result.failReason === 'flipped').length,
+    exploded: results.filter((result) => result.failReason === 'exploded').length,
+    timedOut: results.filter(
+      (result) => result.viable && !result.finished && result.failReason === null,
+    ).length,
+  };
+  const breeding = evolvePopulationWithStats(population, fitnesses, run.rng, run.config);
 
   const generation = {
     index,
     population: population.map(cloneGenome),
     fitnesses,
-    results: results.map(({ fitness, finished, failed, failReason, ticks }) => ({
+    results: results.map(({ fitness, finished, failed, failReason, ticks, viable, viabilityReason }) => ({
       fitness,
       finished,
       failed,
       failReason,
       ticks,
+      viable,
+      viabilityReason,
     })),
     ranked,
     bestIndex: best,
-    bestFitness: fitnesses[best],
-    bestGenome: cloneGenome(population[best]),
-    averageFitness: fitnesses.reduce((sum, f) => sum + f, 0) / fitnesses.length,
-    finishers: results.filter((r) => r.finished).length,
+    bestFitness: best === null ? 0 : fitnesses[best],
+    bestGenome: best === null ? null : cloneGenome(population[best]),
+    averageFitness:
+      viableCount === 0
+        ? 0
+        : viableIndices.reduce((sum, resultIndex) => sum + fitnesses[resultIndex], 0) /
+          viableCount,
+    viableCount,
+    unviableCount,
+    rejectedOffspringCount: breeding.rejectedUnviableCount,
+    ...outcomeCounts,
+    stats: {
+      populationSize: population.length,
+      viableCount,
+      unviableCount,
+      rejectedOffspringCount: breeding.rejectedUnviableCount,
+      ...outcomeCounts,
+    },
   };
   run.history.push(generation);
-  run.pending = evolvePopulation(population, fitnesses, run.rng, run.config);
+  run.pending = breeding.population;
   return generation;
+}
+
+function evaluateGenome(genome, run) {
+  const viability = assessGenomeViability(genome);
+  if (!viability.viable) return unviableResult(viability.reason);
+  return {
+    ...simulateGenome(genome, run.track, {
+      continueAfterFlip: run.config.continueAfterFlip,
+    }),
+    viable: true,
+    viabilityReason: null,
+  };
+}
+
+function unviableResult(reason) {
+  return {
+    fitness: 0,
+    finished: false,
+    failed: true,
+    failReason: 'unviable',
+    ticks: 0,
+    viable: false,
+    viabilityReason: reason,
+  };
 }
 
 /** Run every generation synchronously. Blocking — for tests and scripts. */
@@ -209,6 +275,7 @@ export function generationAt(run, index) {
 export function bestEver(run) {
   let best = null;
   for (const generation of run.history) {
+    if (!generation.bestGenome) continue;
     if (!best || generation.bestFitness > best.fitness) {
       best = {
         fitness: generation.bestFitness,

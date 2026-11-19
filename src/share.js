@@ -9,6 +9,7 @@
 import {
   normalizeGenome,
   isValidGenome,
+  isViableGenome,
   LEGACY_WHEEL_SHAPES,
   regularWheelShape,
 } from './genome.js';
@@ -28,6 +29,9 @@ const UNREADABLE = "This share link isn't readable. It may have been cut short w
  */
 export function encodeShare({ genome, generation = 0, trackId = DEFAULT_TRACK_ID }) {
   const safe = normalizeGenome(genome);
+  if (!isViableGenome(safe)) {
+    throw new RangeError('encodeShare: genome has unviable geometry');
+  }
   if (!Number.isInteger(generation) || generation < 0) {
     throw new RangeError(`encodeShare: generation must be a non-negative integer, got ${generation}`);
   }
@@ -105,6 +109,9 @@ export function decodeShare(encoded) {
   if (!isValidGenome({ chassis, wheels })) {
     return fail("This share link describes a car that couldn't be built.");
   }
+  if (!isViableGenome({ chassis, wheels })) {
+    return fail('This share link describes a car with unviable geometry.');
+  }
   return { ok: true, value: { genome: normalizeGenome({ chassis, wheels }), generation, trackId } };
 }
 
@@ -147,8 +154,8 @@ function fail(error) {
 /**
  * FNV-1a over the payload body, in base36. This guards against a link that lost
  * its tail between a chat client and the address bar, not against tampering:
- * anyone can recompute it, and a hand-built genome still has to clear
- * isValidGenome below.
+ * anyone can recompute it, and a hand-built genome still has to clear both
+ * structural and viability checks below.
  */
 function checksum(body) {
   let hash = 0x811c9dc5;

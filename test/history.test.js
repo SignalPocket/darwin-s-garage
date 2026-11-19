@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createDefaultTrack } from '../src/track.js';
-import { isValidGenome } from '../src/genome.js';
+import { isValidGenome, isViableGenome, normalizeGenome } from '../src/genome.js';
 import {
   createRun,
   runGeneration,
@@ -85,6 +85,46 @@ test('runGeneration reports a plausible average and finisher count', () => {
   assert.ok(generation.averageFitness <= generation.bestFitness + 1e-9);
   assert.ok(generation.averageFitness >= 0);
   assert.ok(generation.finishers >= 0 && generation.finishers <= 6);
+});
+
+test('generation history records viability, breeding culls, and driving outcomes', () => {
+  const generation = runGeneration(smallRun());
+  assert.equal(generation.stats.populationSize, 6);
+  assert.equal(generation.viableCount + generation.unviableCount, 6);
+  assert.equal(generation.unviableCount, 0);
+  assert.equal(generation.stats.viableCount, generation.viableCount);
+  assert.equal(generation.stats.unviableCount, generation.unviableCount);
+  assert.equal(generation.stats.rejectedOffspringCount, generation.rejectedOffspringCount);
+  assert.equal(generation.stats.finishers, generation.finishers);
+  assert.equal(
+    generation.stalled + generation.flipped + generation.exploded + generation.timedOut,
+    generation.viableCount - generation.finishers,
+  );
+  assert.ok(generation.results.every((result) => result.viable));
+  assert.ok(generation.results.every((result) => result.viabilityReason === null));
+});
+
+test('unviable designs are recorded, skipped in evaluation, and absent from children', () => {
+  const run = smallRun({ generations: 2 });
+  runGeneration(run);
+  run.pending[0] = normalizeGenome({
+    chassis: [
+      { x: 28, y: -35 },
+      { x: -4, y: 19 },
+      { x: 28, y: -29 },
+      { x: -20, y: -21 },
+    ],
+    wheels: run.pending[1].wheels.slice(0, 2),
+  });
+
+  const generation = runGeneration(run);
+  assert.equal(generation.results[0].viable, false);
+  assert.equal(generation.results[0].failReason, 'unviable');
+  assert.equal(generation.results[0].viabilityReason, 'chassis-too-small');
+  assert.equal(generation.results[0].ticks, 0);
+  assert.equal(generation.unviableCount, 1);
+  assert.equal(generation.viableCount, 5);
+  assert.ok(run.pending.every(isViableGenome));
 });
 
 test('generation history is addressable by index and stores distinct generations', () => {

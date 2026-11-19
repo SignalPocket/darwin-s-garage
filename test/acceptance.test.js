@@ -22,11 +22,11 @@ const longRun = createRun(longTrack, { seed: 1, generations: 12 });
 runAll(longRun);
 
 test('[1.2] the default longer course is valid and seed 1 makes measurable progress', () => {
-  const first = longRun.history[0].bestFitness;
-  const last = longRun.history[11].bestFitness;
+  const first = longRun.history[0].averageFitness;
+  const last = longRun.history[11].averageFitness;
   assert.equal(finishX(longTrack), 12000);
   assert.ok(first > 0);
-  assert.ok(last > first, `long-course progress was only ${first.toFixed(0)} -> ${last.toFixed(0)}`);
+  assert.ok(last > first * 1.5, `long-course progress was only ${first.toFixed(0)} -> ${last.toFixed(0)}`);
   assert.ok(longRun.history[11].finishers > longRun.history[0].finishers);
 });
 

@@ -491,6 +491,13 @@ body {
   color: var(--text-on-dark);
 }
 
+.stat__value--compact {
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--text-on-dark);
+}
+
 .stat__unit {
   font-size: 0.75rem;
   color: #a99e88;
@@ -916,6 +923,15 @@ body {
 .chip.is-best {
   border-color: var(--accent-support);
   background: rgba(232, 180, 0, 0.16);
+}
+
+.chip.is-unviable {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.chip.is-unviable canvas {
+  filter: grayscale(1);
 }
 
 .chip canvas {

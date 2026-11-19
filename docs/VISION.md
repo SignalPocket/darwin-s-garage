@@ -23,14 +23,14 @@ who *does* know GAs can see real selection/crossover/mutation happening, not a c
    attached at a chassis vertex with its own radius, torque, and polygon outline. New cars start
    with five chassis vertices and round wheel outlines of varied vertex counts; mutation can add,
    remove, and move vertices in either outline. See `src/genome.js`.
-2. A **population** of genomes (generation 0: pure random) is built into Matter.js bodies and
-   dropped on a seeded, adjustable track. Each car runs the physics sim for a budget scaled to the
-   course length.
-3. **Fitness** is horizontal distance traveled toward the finish, with a small penalty for
-   chassis pieces that break/detach and a bonus for not flipping. Getting this function right —
-   so a barely-functional wobble scores meaningfully better than a car that doesn't move, without
-   accidentally rewarding degenerate strategies (e.g. a car that just topples forward once) — is
-   the central tuning problem of this project.
+2. A **population** of genomes (generation 0: pure random) is checked for useful chassis and
+   wheel geometry before it is built into Matter.js bodies and dropped on a seeded, adjustable
+   track. Unviable designs are recorded, skipped, and never selected as parents or carried into
+   the next population. A viable chassis needs at least 1,800 px² of convex-hull area and 30 px
+   in both dimensions; each wheel needs at least 0.5 square units of normalized hull area.
+3. **Fitness** is horizontal distance traveled toward the finish. Each generation records
+   finishers, stalls, flips, timeouts, unviable designs, and offspring rejected for degenerate
+   geometry, so progress and failure are visible alongside the fitness curve.
 4. The next generation is bred from the current one: fitness-weighted random **selection** of
    parents, **crossover** that shuffles individual chassis, wheel-trait, and wheel-outline genes
    from the run's seeded RNG and alternates contiguous segments,

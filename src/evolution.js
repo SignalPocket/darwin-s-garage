@@ -7,6 +7,7 @@ import {
   normalizeGenome,
   cloneGenome,
   isValidGenome,
+  isViableGenome,
   GENOME_LIMITS,
   clamp,
 } from './genome.js';
@@ -293,7 +294,18 @@ export function mutate(genome, rng, options = {}) {
  * @returns {object[]} a new population of the same size
  */
 export function evolvePopulation(population, fitnesses, rng, options = {}) {
+  return evolvePopulationWithStats(population, fitnesses, rng, options).population;
+}
+
+/**
+ * Breed a full viable population and report how many candidate offspring were
+ * rejected for degenerate geometry.
+ */
+export function evolvePopulationWithStats(population, fitnesses, rng, options = {}) {
   assertPopulation(population, fitnesses, 'evolvePopulation');
+  if (typeof rng !== 'function') {
+    throw new TypeError('evolvePopulation: rng must be a function');
+  }
   const config = { ...EVOLUTION_DEFAULTS, ...options };
   const eliteCount = config.eliteCount;
   if (
@@ -306,26 +318,77 @@ export function evolvePopulation(population, fitnesses, rng, options = {}) {
     );
   }
 
-  const next = rankedIndices(fitnesses)
-    .slice(0, eliteCount)
-    .map((i) => cloneGenome(population[i]));
-
   if (!(config.crossoverRate >= 0 && config.crossoverRate <= 1)) {
     throw new RangeError(
       `evolvePopulation: crossoverRate must be within [0, 1], got ${config.crossoverRate}`,
     );
   }
+  for (const [name, chance] of [
+    ['mutationRate', config.mutationRate],
+    ['vertexCountMutationChance', config.vertexCountMutationChance],
+    ['wheelShapeMutationChance', config.wheelShapeMutationChance],
+  ]) {
+    if (!(chance >= 0 && chance <= 1)) {
+      throw new RangeError(`evolvePopulation: ${name} must be within [0, 1], got ${chance}`);
+    }
+  }
+
+  const eligible = population
+    .map((genome, index) => ({ genome, fitness: fitnesses[index] }))
+    .filter(({ genome }) => isViableGenome(genome));
+  if (eligible.length === 0) {
+    let rejectedUnviableCount = 0;
+    const next = Array.from({ length: population.length }, () => {
+      const result = createViableRandomGenome(rng);
+      rejectedUnviableCount += result.rejectedUnviableCount;
+      return result.genome;
+    });
+    return { population: next, rejectedUnviableCount };
+  }
+
+  const viablePopulation = eligible.map(({ genome }) => genome);
+  const viableFitnesses = eligible.map(({ fitness }) => fitness);
+  const next = rankedIndices(viableFitnesses)
+    .slice(0, eliteCount)
+    .map((index) => cloneGenome(viablePopulation[index]));
+  let rejectedUnviableCount = 0;
 
   while (next.length < population.length) {
-    const parentA = selectParent(population, fitnesses, rng);
-    const parentB = selectParent(population, fitnesses, rng);
-    const child =
-      rng() < config.crossoverRate
-        ? crossover(parentA, parentB, rng)
-        : cloneGenome(normalizeGenome(parentA));
-    next.push(mutate(child, rng, config));
+    let offspring;
+    for (let attempt = 0; attempt < MAX_VIABLE_OFFSPRING_ATTEMPTS; attempt += 1) {
+      try {
+        const parentA = selectParent(viablePopulation, viableFitnesses, rng);
+        const parentB = selectParent(viablePopulation, viableFitnesses, rng);
+        const child =
+          rng() < config.crossoverRate
+            ? crossover(parentA, parentB, rng)
+            : cloneGenome(normalizeGenome(parentA));
+        const candidate = mutate(child, rng, config);
+        if (isViableGenome(candidate)) {
+          offspring = candidate;
+          break;
+        }
+      } catch (error) {
+        if (!(error instanceof RangeError)) throw error;
+      }
+      rejectedUnviableCount += 1;
+    }
+    next.push(
+      offspring ??
+        cloneGenome(viablePopulation[randomInt(rng, 0, viablePopulation.length - 1)]),
+    );
   }
-  return next;
+  return { population: next, rejectedUnviableCount };
+}
+
+const MAX_VIABLE_OFFSPRING_ATTEMPTS = 32;
+
+function createViableRandomGenome(rng) {
+  for (let attempt = 0; attempt < MAX_VIABLE_OFFSPRING_ATTEMPTS; attempt += 1) {
+    const genome = createRandomGenome(rng);
+    if (isViableGenome(genome)) return { genome, rejectedUnviableCount: attempt };
+  }
+  throw new Error('evolvePopulation: could not generate a viable fallback genome');
 }
 
 /** Population indices ordered best fitness first. */

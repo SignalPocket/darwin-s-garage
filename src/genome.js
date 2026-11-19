@@ -21,6 +21,12 @@ export const GENOME_LIMITS = Object.freeze({
   chassisRadius: 60,
   minVertexRadius: 15,
   maxVertexRadius: 110,
+  // Reject pin-sized and beam-like chassis instead of rewarding their
+  // accidental physics. Both chassis extents use pixels; wheel area is in
+  // normalized [-1, 1] outline coordinates.
+  minChassisHullArea: 1800,
+  minChassisHullExtent: 30,
+  minWheelHullArea: 0.5,
 });
 
 export const LEGACY_WHEEL_SHAPES = Object.freeze(['circle', 'triangle', 'square', 'hexagon']);
@@ -165,6 +171,38 @@ export function isValidGenome(genome) {
   }
 }
 
+/** Explain whether a genome has enough real shape to build a useful vehicle. */
+export function assessGenomeViability(genome) {
+  let safe;
+  try {
+    safe = normalizeGenome(genome);
+  } catch {
+    return { viable: false, reason: 'invalid-genome' };
+  }
+
+  const chassisHull = convexHull(safe.chassis);
+  const chassisBounds = bounds(chassisHull);
+  if (
+    polygonArea(chassisHull) < GENOME_LIMITS.minChassisHullArea ||
+    chassisBounds.width < GENOME_LIMITS.minChassisHullExtent ||
+    chassisBounds.height < GENOME_LIMITS.minChassisHullExtent
+  ) {
+    return { viable: false, reason: 'chassis-too-small' };
+  }
+
+  for (const [wheelIndex, wheel] of safe.wheels.entries()) {
+    if (polygonArea(convexHull(wheel.shape)) < GENOME_LIMITS.minWheelHullArea) {
+      return { viable: false, reason: 'wheel-outline-too-thin', wheelIndex };
+    }
+  }
+  return { viable: true, reason: null };
+}
+
+/** Whether the normalized chassis and every wheel outline have useful area. */
+export function isViableGenome(genome) {
+  return assessGenomeViability(genome).viable;
+}
+
 /** Deep copy — genomes are passed between generations and must not alias. */
 export function cloneGenome(genome) {
   return {
@@ -232,6 +270,43 @@ function isDegenerate(points) {
     const dy = point.y - origin.y;
     return direction.x * dy - direction.y * dx === 0;
   });
+}
+
+function convexHull(points) {
+  const sorted = [...new Map(points.map((point) => [`${point.x},${point.y}`, point])).values()]
+    .sort((a, b) => a.x - b.x || a.y - b.y);
+  if (sorted.length <= 1) return sorted;
+  const cross = (origin, a, b) =>
+    (a.x - origin.x) * (b.y - origin.y) - (a.y - origin.y) * (b.x - origin.x);
+  const lower = [];
+  const upper = [];
+  for (const point of sorted) {
+    while (lower.length > 1 && cross(lower.at(-2), lower.at(-1), point) <= 0) lower.pop();
+    lower.push(point);
+  }
+  for (const point of [...sorted].reverse()) {
+    while (upper.length > 1 && cross(upper.at(-2), upper.at(-1), point) <= 0) upper.pop();
+    upper.push(point);
+  }
+  return [...lower.slice(0, -1), ...upper.slice(0, -1)];
+}
+
+function polygonArea(points) {
+  if (points.length < 3) return 0;
+  const twiceArea = points.reduce((sum, point, index) => {
+    const next = points[(index + 1) % points.length];
+    return sum + point.x * next.y - next.x * point.y;
+  }, 0);
+  return Math.abs(twiceArea) / 2;
+}
+
+function bounds(points) {
+  const xs = points.map((point) => point.x);
+  const ys = points.map((point) => point.y);
+  return {
+    width: Math.max(...xs) - Math.min(...xs),
+    height: Math.max(...ys) - Math.min(...ys),
+  };
 }
 
 function clampVertex(point) {

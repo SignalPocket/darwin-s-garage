@@ -74,6 +74,7 @@ const dom = {
   statFitness: el('stat-fitness'),
   statPopulation: el('stat-population'),
   statFinishers: el('stat-finishers'),
+  statGenerationReport: el('stat-generation-report'),
   statBestEver: el('stat-best-ever'),
 };
 
@@ -239,6 +240,7 @@ function currentGenome() {
   const generation = state.run.history[state.generation];
   if (!generation) return null;
   const index = state.individual ?? generation.bestIndex;
+  if (index === null) return null;
   return generation.population[index] ?? null;
 }
 
@@ -249,7 +251,13 @@ function replayKey() {
 
 function loadReplay() {
   const genome = currentGenome();
-  if (!genome) return;
+  if (!genome) {
+    state.playback = null;
+    state.playing = false;
+    syncPlayButton();
+    hideVerdict();
+    return;
+  }
   const key = replayKey();
   if (!replayCache.has(key)) {
     const result = replayGenome(genome, track, {
@@ -307,6 +315,16 @@ function renderHud() {
   if (!generation) return;
   dom.statGeneration.textContent = generation.index;
   dom.statFinishers.textContent = generation.finishers;
+  dom.statGenerationReport.textContent = [
+    `${generation.viableCount}/${generation.stats.populationSize} viable`,
+    `${generation.unviableCount} unviable`,
+    `${generation.rejectedOffspringCount} culled candidates`,
+    `${generation.finishers} finished`,
+    `${generation.stalled} stalled`,
+    `${generation.flipped} flipped`,
+    `${generation.exploded} exploded`,
+    `${generation.timedOut} timed out`,
+  ].join(' · ');
 
   const shown = state.playback?.result;
   const fitness = state.guest ? (shown?.fitness ?? 0) : generation.bestFitness;
@@ -530,17 +548,23 @@ function buildChip(genome, generation, index) {
   chip.type = 'button';
   chip.className = 'chip';
   const fitness = generation.fitnesses[index];
+  const result = generation.results[index];
+  chip.disabled = !result.viable;
+  chip.classList.toggle('is-unviable', !result.viable);
   chip.setAttribute(
     'aria-label',
-    `Car ${index + 1} of generation ${generation.index}, ${metres(fitness)} metres`,
+    result.viable
+      ? `Car ${index + 1} of generation ${generation.index}, ${metres(fitness)} metres`
+      : `Car ${index + 1} of generation ${generation.index}, unviable: ${result.viabilityReason}`,
   );
+  if (!result.viable) chip.title = `Not eligible for breeding: ${result.viabilityReason}`;
 
   const canvas = document.createElement('canvas');
   chip.append(canvas);
 
   const score = document.createElement('span');
   score.className = 'chip__score';
-  score.textContent = `${metres(fitness)}m`;
+  score.textContent = result.viable ? `${metres(fitness)}m` : 'Unviable';
   chip.append(score);
 
   chip.addEventListener('click', () => {
