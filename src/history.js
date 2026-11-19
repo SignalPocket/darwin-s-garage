@@ -11,6 +11,7 @@ import {
   rankedIndices,
   EVOLUTION_DEFAULTS,
   POPULATION_SIZE_LIMITS,
+  ELITE_COUNT_LIMITS,
 } from './evolution.js';
 import { simulateGenome, createSimulation } from './simulate.js';
 import { isValidTrack, validateTrack } from './track.js';
@@ -52,6 +53,15 @@ export function createRun(track, options = {}) {
   ) {
     throw new RangeError(
       `createRun: populationSize must be an integer from ${POPULATION_SIZE_LIMITS.min} to ${POPULATION_SIZE_LIMITS.max}, got ${config.populationSize}`,
+    );
+  }
+  if (
+    !Number.isInteger(config.eliteCount) ||
+    config.eliteCount < ELITE_COUNT_LIMITS.min ||
+    config.eliteCount > config.populationSize
+  ) {
+    throw new RangeError(
+      `createRun: eliteCount must be an integer from ${ELITE_COUNT_LIMITS.min} to ${config.populationSize}, got ${config.eliteCount}`,
     );
   }
   return {

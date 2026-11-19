@@ -211,6 +211,21 @@
               aria-describedby="seed-help"
             />
           </label>
+          <label class="seed-run__field" for="elite-count-input">
+            <span class="seed-run__label">Elites carried forward</span>
+            <input
+              id="elite-count-input"
+              class="seed-run__input"
+              name="eliteCount"
+              type="number"
+              inputmode="numeric"
+              min="0"
+              max="24"
+              step="1"
+              value="2"
+              aria-describedby="seed-help"
+            />
+          </label>
           <label class="seed-run__field" for="course-length">
             <span class="seed-run__label">Course length (m)</span>
             <input
@@ -270,8 +285,8 @@
             <button id="start-run" class="btn btn--primary" type="submit">Start run</button>
           </div>
           <p id="seed-help" class="seed-run__help">
-            The run seed drives both car evolution and course generation. Adjust length, roughness,
-            steepness, and obstacle frequency to shape a different course.
+            The run seed drives car evolution and course generation. Set the population and how
+            many top cars carry over unchanged; adjust length and terrain settings to shape a course.
           </p>
         </form>
 

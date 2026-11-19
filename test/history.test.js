@@ -41,6 +41,17 @@ test('createRun rejects population sizes outside the practical range', () => {
   }
 });
 
+test('createRun validates elite count against population size', () => {
+  for (const eliteCount of [-1, 1.5, 7]) {
+    assert.throws(
+      () => createRun(track, { populationSize: 6, eliteCount }),
+      RangeError,
+    );
+  }
+  assert.equal(smallRun({ eliteCount: 0 }).config.eliteCount, 0);
+  assert.equal(smallRun({ eliteCount: 6 }).config.eliteCount, 6);
+});
+
 test('runGeneration records a full generation and indexes it', () => {
   const run = smallRun();
   const generation = runGeneration(run);

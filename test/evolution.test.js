@@ -404,11 +404,13 @@ test('evolvePopulation copes with an all-zero-fitness generation', () => {
   assert.ok(next.every(isValidGenome));
 });
 
-test('evolvePopulation clamps an elite count larger than the population', () => {
+test('evolvePopulation rejects an elite count larger than the population', () => {
   const population = pop(4);
   const fitnesses = [1, 2, 3, 4];
-  const next = evolvePopulation(population, fitnesses, createRng(1), { eliteCount: 99 });
-  assert.equal(next.length, 4);
+  assert.throws(
+    () => evolvePopulation(population, fitnesses, createRng(1), { eliteCount: 99 }),
+    RangeError,
+  );
 });
 
 test('evolvePopulation rejects mismatched fitness arrays', () => {

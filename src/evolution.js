@@ -13,6 +13,7 @@ import {
 import { randomInt, randomFloat } from './rng.js';
 
 export const POPULATION_SIZE_LIMITS = Object.freeze({ min: 2, max: 256 });
+export const ELITE_COUNT_LIMITS = Object.freeze({ min: 0 });
 
 export const EVOLUTION_DEFAULTS = Object.freeze({
   populationSize: 24,
@@ -294,7 +295,16 @@ export function mutate(genome, rng, options = {}) {
 export function evolvePopulation(population, fitnesses, rng, options = {}) {
   assertPopulation(population, fitnesses, 'evolvePopulation');
   const config = { ...EVOLUTION_DEFAULTS, ...options };
-  const eliteCount = clamp(config.eliteCount, 0, population.length);
+  const eliteCount = config.eliteCount;
+  if (
+    !Number.isInteger(eliteCount) ||
+    eliteCount < ELITE_COUNT_LIMITS.min ||
+    eliteCount > population.length
+  ) {
+    throw new RangeError(
+      `evolvePopulation: eliteCount must be an integer from ${ELITE_COUNT_LIMITS.min} to ${population.length}, got ${eliteCount}`,
+    );
+  }
 
   const next = rankedIndices(fitnesses)
     .slice(0, eliteCount)

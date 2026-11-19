@@ -10,7 +10,11 @@ import {
   DEFAULT_TERRAIN_SETTING,
   courseSettingsFromTrackId,
 } from './track.js';
-import { EVOLUTION_DEFAULTS, POPULATION_SIZE_LIMITS } from './evolution.js';
+import {
+  ELITE_COUNT_LIMITS,
+  EVOLUTION_DEFAULTS,
+  POPULATION_SIZE_LIMITS,
+} from './evolution.js';
 import { createRun, runAllAsync, bestEver, fitnessCurve } from './history.js';
 import { replayGenome } from './simulate.js';
 import { createRenderer, cameraTarget, PALETTE } from './render.js';
@@ -55,6 +59,7 @@ const dom = {
   seedInput: el('seed-input'),
   generationsInput: el('generations-input'),
   populationSizeInput: el('population-size-input'),
+  eliteCountInput: el('elite-count-input'),
   courseLength: el('course-length'),
   courseRoughness: el('course-roughness'),
   courseSteepness: el('course-steepness'),
@@ -80,6 +85,7 @@ const audio = createAudio();
 const SEED_PARAM = 'seed';
 const GENERATIONS_PARAM = 'generations';
 const POPULATION_SIZE_PARAM = 'populationSize';
+const ELITE_COUNT_PARAM = 'eliteCount';
 const COURSE_LENGTH_PARAM = 'courseLength';
 const ROUGHNESS_PARAM = 'roughness';
 const STEEPNESS_PARAM = 'steepness';
@@ -114,6 +120,16 @@ function readInitialPopulationSize() {
     EVOLUTION_DEFAULTS.populationSize,
     POPULATION_SIZE_LIMITS.min,
     POPULATION_SIZE_LIMITS.max,
+  );
+}
+
+function readInitialEliteCount() {
+  const url = new URL(window.location.href);
+  return readIntegerParam(
+    url.searchParams.get(ELITE_COUNT_PARAM),
+    EVOLUTION_DEFAULTS.eliteCount,
+    ELITE_COUNT_LIMITS.min,
+    initialPopulationSize,
   );
 }
 
@@ -179,6 +195,7 @@ function randomSeed() {
 const initialSeed = readInitialSeed();
 const initialGenerations = readInitialGenerations();
 const initialPopulationSize = readInitialPopulationSize();
+const initialEliteCount = readInitialEliteCount();
 const initialCourse = readInitialCourse();
 const track = createDefaultTrack(initialCourse);
 
@@ -187,6 +204,7 @@ const state = {
     seed: initialSeed,
     generations: initialGenerations,
     populationSize: initialPopulationSize,
+    eliteCount: initialEliteCount,
   }),
   generation: 0,
   individual: null, // null = "the best of this generation"
@@ -679,6 +697,7 @@ function buildShareUrl(genome, generation) {
   );
   url.searchParams.set(SEED_PARAM, String(state.run.track.seed));
   url.searchParams.set(POPULATION_SIZE_PARAM, String(state.run.config.populationSize));
+  url.searchParams.set(ELITE_COUNT_PARAM, String(state.run.config.eliteCount));
   url.searchParams.set(COURSE_LENGTH_PARAM, String(state.run.track.length));
   url.searchParams.set(ROUGHNESS_PARAM, String(state.run.track.roughness));
   url.searchParams.set(STEEPNESS_PARAM, String(state.run.track.steepness));
@@ -703,6 +722,8 @@ function wireControls() {
   dom.seedInput.value = String(initialSeed);
   dom.generationsInput.value = String(initialGenerations);
   dom.populationSizeInput.value = String(initialPopulationSize);
+  dom.eliteCountInput.value = String(initialEliteCount);
+  dom.eliteCountInput.max = String(initialPopulationSize);
   dom.courseLength.value = String(initialCourse.length);
   dom.courseRoughness.value = String(initialCourse.roughness);
   dom.courseSteepness.value = String(initialCourse.steepness);
@@ -712,6 +733,10 @@ function wireControls() {
   for (const input of [dom.courseRoughness, dom.courseSteepness, dom.courseObstacles]) {
     input.addEventListener('input', syncCourseOutputs);
   }
+  dom.populationSizeInput.addEventListener('input', () => {
+    dom.eliteCountInput.max = dom.populationSizeInput.value;
+    dom.eliteCountInput.setCustomValidity('');
+  });
 
   dom.randomSeed.addEventListener('click', () => {
     audio.unlock();
@@ -745,6 +770,18 @@ function wireControls() {
       dom.populationSizeInput.reportValidity();
       return;
     }
+    const eliteCount = Number(dom.eliteCountInput.value);
+    if (
+      !Number.isInteger(eliteCount) ||
+      eliteCount < ELITE_COUNT_LIMITS.min ||
+      eliteCount > populationSize
+    ) {
+      dom.eliteCountInput.setCustomValidity(
+        `Enter a whole number from ${ELITE_COUNT_LIMITS.min} to the population size (${populationSize}).`,
+      );
+      dom.eliteCountInput.reportValidity();
+      return;
+    }
     const courseLength = Number(dom.courseLength.value);
     if (
       !Number.isInteger(courseLength) ||
@@ -775,12 +812,14 @@ function wireControls() {
     dom.seedInput.setCustomValidity('');
     dom.generationsInput.setCustomValidity('');
     dom.populationSizeInput.setCustomValidity('');
+    dom.eliteCountInput.setCustomValidity('');
     dom.courseLength.setCustomValidity('');
     dom.courseRoughness.setCustomValidity('');
     const url = new URL(window.location.href);
     url.searchParams.set(SEED_PARAM, String(seed));
     url.searchParams.set(GENERATIONS_PARAM, String(generations));
     url.searchParams.set(POPULATION_SIZE_PARAM, String(populationSize));
+    url.searchParams.set(ELITE_COUNT_PARAM, String(eliteCount));
     url.searchParams.set(COURSE_LENGTH_PARAM, String(courseLength));
     url.searchParams.set(ROUGHNESS_PARAM, String(roughness));
     url.searchParams.set(STEEPNESS_PARAM, String(steepness));
