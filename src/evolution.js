@@ -60,9 +60,9 @@ export function selectParent(population, fitnesses, rng, k = EVOLUTION_DEFAULTS.
 }
 
 /**
- * Recombine ordered chassis-vertex and wheel genes using alternating segments.
- * The first parent supplies the child's structure; one to three crossover
- * points switch which parent's corresponding genes are copied into each segment.
+ * Recombine chassis-vertex and wheel genes using alternating segments in a
+ * seeded, shuffled gene order. The first parent supplies the child's structure;
+ * one to three crossover points switch which parent's genes fill each segment.
  */
 export function crossover(parentA, parentB, rng) {
   const a = normalizeGenome(parentA);
@@ -73,6 +73,10 @@ export function crossover(parentA, parentB, rng) {
     ...base.chassis.map((_, index) => ({ kind: 'chassis', index })),
     ...base.wheels.map((_, index) => ({ kind: 'wheel', index })),
   ];
+  for (let index = chromosome.length - 1; index > 0; index -= 1) {
+    const swapIndex = randomInt(rng, 0, index);
+    [chromosome[index], chromosome[swapIndex]] = [chromosome[swapIndex], chromosome[index]];
+  }
   const maxCrossovers = Math.min(3, chromosome.length - 1);
   const crossoverCount = randomInt(rng, 1, maxCrossovers);
   const crossoverPoints = new Set();
@@ -80,7 +84,10 @@ export function crossover(parentA, parentB, rng) {
     crossoverPoints.add(randomInt(rng, 1, chromosome.length - 1));
   }
 
-  const child = { chassis: [], wheels: [] };
+  const child = {
+    chassis: Array(base.chassis.length),
+    wheels: Array(base.wheels.length),
+  };
   let useBase = rng() < 0.5;
   for (const [locus, gene] of chromosome.entries()) {
     if (crossoverPoints.has(locus)) useBase = !useBase;
@@ -90,12 +97,12 @@ export function crossover(parentA, parentB, rng) {
     const fallbackGenes = fallback[gene.kind === 'chassis' ? 'chassis' : 'wheels'];
     const value = sourceGenes[gene.index] ?? fallbackGenes[gene.index];
     if (gene.kind === 'chassis') {
-      child.chassis.push({ x: value.x, y: value.y });
+      child.chassis[gene.index] = { x: value.x, y: value.y };
     } else {
-      child.wheels.push({
+      child.wheels[gene.index] = {
         ...value,
         shape: value.shape.map((point) => ({ x: point.x, y: point.y })),
-      });
+      };
     }
   }
 

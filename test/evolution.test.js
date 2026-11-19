@@ -109,7 +109,7 @@ test('crossover of a genome with itself reproduces that genome', () => {
   assert.deepEqual(child, parent);
 });
 
-test('crossover swaps contiguous segments along the linear chromosome', () => {
+test('crossover randomizes gene order from the seeded rng before swapping segments', () => {
   const parentA = normalizeGenome({
     chassis: [
       { x: 60, y: 0 },
@@ -131,19 +131,25 @@ test('crossover swaps contiguous segments along the linear chromosome', () => {
       torque: 0.1,
     })),
   });
-  const sequence = [0.1, 0.1, 0, 0.1];
-  const rng = () => sequence.shift() ?? 0.99;
-  const child = crossover(parentA, parentB, rng);
+  const lineagePattern = (child) => [
+    ...child.chassis.map((point, index) => {
+      if (JSON.stringify(point) === JSON.stringify(parentA.chassis[index])) return 'A';
+      if (JSON.stringify(point) === JSON.stringify(parentB.chassis[index])) return 'B';
+      return '?';
+    }),
+    ...child.wheels.map((wheel) => (wheel.radius === 12 ? 'A' : 'B')),
+  ];
+  const child = crossover(parentA, parentB, createRng(31));
+  const pattern = lineagePattern(child);
+  const transitions = pattern.reduce(
+    (count, parent, index) => count + (index > 0 && parent !== pattern[index - 1] ? 1 : 0),
+    0,
+  );
 
-  const inheritedFrom = child.chassis.map((point, index) => {
-    if (JSON.stringify(point) === JSON.stringify(parentA.chassis[index])) return 'A';
-    if (JSON.stringify(point) === JSON.stringify(parentB.chassis[index])) return 'B';
-    return '?';
-  });
-  inheritedFrom.push(...child.wheels.map((wheel) => (wheel.radius === 12 ? 'A' : 'B')));
-
-  assert.deepEqual(inheritedFrom, ['A', 'B', 'B', 'B', 'B', 'B', 'B']);
   assert.ok(isValidGenome(child));
+  assert.ok(pattern.includes('A') && pattern.includes('B'));
+  assert.ok(transitions > 3, `expected shuffled segments to disrupt linear adjacency: ${pattern}`);
+  assert.deepEqual(child, crossover(parentA, parentB, createRng(31)));
 });
 
 test('crossover is deterministic for the same parents and random seed', () => {
