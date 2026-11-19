@@ -26,9 +26,9 @@ torque. Evolution can add or remove chassis vertices and mutate wheels into poly
 }
 ```
 
-Crossover splices two parent chassis, mutation jitters the numbers, and tournament selection picks
-parents in small brackets so a mediocre car still gets an occasional shot. None of it is clever,
-and none of it is where the time went.
+Crossover splices genes from two parents, mutation jitters the numbers, and fitness-weighted random
+selection gives better-performing cars higher odds while leaving every car a chance to reproduce.
+None of it is clever, and none of it is where the time went.
 
 ## The tuning is the whole project
 

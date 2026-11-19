@@ -34,7 +34,6 @@ export const EVOLUTION_DEFAULTS = Object.freeze({
   vertexCountMutationChance: 0.2,
   wheelShapeMutationChance: 0.25,
   wheelShapeJitter: 0.2,
-  tournamentSize: 3,
 });
 
 /** A generation-0 population of pure random genomes. */
@@ -52,19 +51,31 @@ export function createPopulation(rng, size = EVOLUTION_DEFAULTS.populationSize) 
 }
 
 /**
- * Pick one parent by tournament: sample k individuals, return the fittest.
- * Tournament rather than fitness-proportionate selection because fitness here is
- * a raw distance — proportionate selection would barely distinguish 900 from
- * 1000, and would divide by zero when a whole generation scores 0.
+ * Pick one parent by fitness-weighted random selection. A small baseline weight
+ * keeps lower-fitness individuals eligible, while an equal-fitness pool is
+ * sampled uniformly.
  */
-export function selectParent(population, fitnesses, rng, k = EVOLUTION_DEFAULTS.tournamentSize) {
+export function selectParent(population, fitnesses, rng) {
   assertPopulation(population, fitnesses, 'selectParent');
-  let bestIndex = randomInt(rng, 0, population.length - 1);
-  for (let i = 1; i < k; i += 1) {
-    const challenger = randomInt(rng, 0, population.length - 1);
-    if (fitnesses[challenger] > fitnesses[bestIndex]) bestIndex = challenger;
+  if (typeof rng !== 'function') {
+    throw new TypeError('selectParent: rng must be a function');
   }
-  return population[bestIndex];
+  const scale = Math.max(...fitnesses.map(Math.abs), 1);
+  const normalized = fitnesses.map((fitness) => fitness / scale);
+  const minFitness = Math.min(...normalized);
+  const fitnessRange = Math.max(...normalized) - minFitness;
+  if (fitnessRange === 0) {
+    return population[randomInt(rng, 0, population.length - 1)];
+  }
+
+  const weights = normalized.map((fitness) => (fitness - minFitness) / fitnessRange + 0.05);
+  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+  let choice = rng() * totalWeight;
+  for (let index = 0; index < population.length; index += 1) {
+    choice -= weights[index];
+    if (choice < 0) return population[index];
+  }
+  return population.at(-1);
 }
 
 /**
@@ -276,8 +287,8 @@ export function mutate(genome, rng, options = {}) {
 }
 
 /**
- * Breed the next generation: elites survive untouched, the rest are tournament
- * -selected, crossed, and mutated.
+ * Breed the next generation: elites survive untouched, the rest are selected
+ * by fitness-weighted random choice, crossed, and mutated.
  * @returns {object[]} a new population of the same size
  */
 export function evolvePopulation(population, fitnesses, rng, options = {}) {
@@ -296,8 +307,8 @@ export function evolvePopulation(population, fitnesses, rng, options = {}) {
   }
 
   while (next.length < population.length) {
-    const parentA = selectParent(population, fitnesses, rng, config.tournamentSize);
-    const parentB = selectParent(population, fitnesses, rng, config.tournamentSize);
+    const parentA = selectParent(population, fitnesses, rng);
+    const parentB = selectParent(population, fitnesses, rng);
     const child =
       rng() < config.crossoverRate
         ? crossover(parentA, parentB, rng)

@@ -34,7 +34,7 @@ Nothing below `main.js` touches the DOM. Nothing above `car.js` touches Matter.j
 | `src/track.js` | Terrain as an ordered control-point list, plus seeded hill generation configurable by length, roughness, steepness, and obstacle frequency. `validateTrack` returns readable problems rather than throwing, because the editor shows them inline. |
 | `src/car.js` | The only place genomes become Matter bodies. Hulls the chassis, pins wheels with zero-length rigid constraints (a pin joint = a driven axle). Also exposes `chassisOutline`/`wheelAnchors` so the renderer can draw a car without building physics for it. |
 | `src/simulate.js` | Runs one genome against one track. `createSimulation` is a **resumable stepper**; `simulateGenome` runs it to completion. Fitness = max horizontal distance reached. |
-| `src/evolution.js` | Tournament selection, crossover, mutation. Pure data transforms; no physics. |
+| `src/evolution.js` | Fitness-weighted selection, crossover, mutation. Pure data transforms; no physics. |
 | `src/history.js` | The run loop. Keeps **every** generation (the slider replays history, so history is the product). `runAllAsync` slices work across physics ticks to keep the page responsive. |
 | `src/render.js` | Canvas drawing + camera. Reads state, paints it, advances nothing. `viewScale` caps both the world width and height the viewport may show and takes whichever binds, so a car reads at the same fraction of the frame on a phone as on a desktop. |
 | `src/confetti.js` | Pure particle model (spawn/step) for the best-ever celebration burst. Decorative UI, so `Math.random` is fine here — it never touches the physics/RNG path. |

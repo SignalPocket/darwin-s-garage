@@ -31,7 +31,7 @@ who *does* know GAs can see real selection/crossover/mutation happening, not a c
    so a barely-functional wobble scores meaningfully better than a car that doesn't move, without
    accidentally rewarding degenerate strategies (e.g. a car that just topples forward once) — is
    the central tuning problem of this project.
-4. The next generation is bred from the current one: tournament **selection** of
+4. The next generation is bred from the current one: fitness-weighted random **selection** of
    parents, **crossover** that shuffles individual chassis, wheel-trait, and wheel-outline genes
    from the run's seeded RNG and alternates contiguous segments,
    **mutation** that nudges chassis and wheel-outline points and wheel parameters, and adds or

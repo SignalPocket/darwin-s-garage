@@ -43,28 +43,40 @@ test('selectParent returns a member of the population', () => {
   }
 });
 
-test('selectParent favours fitter individuals', () => {
+test('selectParent gives fitter individuals higher odds while keeping all eligible', () => {
   const population = pop(10);
-  // Only the last individual has any fitness at all.
   const fitnesses = population.map((_, i) => (i === 9 ? 1000 : 0));
   const rng = createRng(4);
-  let wins = 0;
-  for (let i = 0; i < 500; i += 1) {
-    if (selectParent(population, fitnesses, rng) === population[9]) wins += 1;
+  const counts = population.map(() => 0);
+  for (let i = 0; i < 10000; i += 1) {
+    const selected = selectParent(population, fitnesses, rng);
+    counts[population.indexOf(selected)] += 1;
   }
-  // With tournament size 3, the champion should win far more than 1-in-10.
-  assert.ok(wins > 100, `champion selected only ${wins}/500 times`);
+  assert.ok(counts[9] > counts[0] * 5, `fitness did not meaningfully weight odds: ${counts}`);
+  assert.ok(counts.slice(0, 9).every((count) => count > 0), 'low-fitness cars should stay eligible');
 });
 
-test('selectParent with tournament size 1 ignores fitness', () => {
+test('selectParent samples equal fitness uniformly', () => {
   const population = pop(4);
-  const fitnesses = [0, 0, 0, 9999];
+  const fitnesses = [0, 0, 0, 0];
   const rng = createRng(6);
-  let wins = 0;
-  for (let i = 0; i < 400; i += 1) {
-    if (selectParent(population, fitnesses, rng, 1) === population[3]) wins += 1;
+  const counts = population.map(() => 0);
+  for (let i = 0; i < 4000; i += 1) {
+    const selected = selectParent(population, fitnesses, rng);
+    counts[population.indexOf(selected)] += 1;
   }
-  assert.ok(wins > 50 && wins < 150, `expected ~1/4 selection, got ${wins}/400`);
+  assert.ok(counts.every((count) => count > 850 && count < 1150), `expected uniform selection, got ${counts}`);
+});
+
+test('selectParent is reproducible and supports negative fitness values', () => {
+  const population = pop(4);
+  const fitnesses = [-10, -5, 0, 5];
+  const rngA = createRng(12);
+  const rngB = createRng(12);
+  const sequenceA = Array.from({ length: 20 }, () => selectParent(population, fitnesses, rngA));
+  const sequenceB = Array.from({ length: 20 }, () => selectParent(population, fitnesses, rngB));
+
+  assert.deepEqual(sequenceA, sequenceB);
 });
 
 test('selectParent rejects mismatched or malformed inputs', () => {
@@ -73,6 +85,7 @@ test('selectParent rejects mismatched or malformed inputs', () => {
   assert.throws(() => selectParent([], [], rng), TypeError);
   assert.throws(() => selectParent(population, [1, 2], rng), TypeError);
   assert.throws(() => selectParent(population, [1, 2, NaN], rng), TypeError);
+  assert.throws(() => selectParent(population, [1, 2, 3], null), TypeError);
 });
 
 test("crossover gives the child one of its parents' vertex counts, never an invented one", () => {

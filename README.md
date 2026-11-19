@@ -24,14 +24,14 @@ random corners at random radii and each wheel given its own torque. Mutation can
 chassis and wheel-outline vertices, then move them to reshape both polygons. Generation 0 is a pile
 of junk that flops, flips, and goes nowhere on the rubble field.
 
-From there a real genetic algorithm takes over. Tournament selection picks parents, crossover
-shuffles individual chassis, wheel-trait, and wheel-outline genes with the run's seeded RNG and
-swaps contiguous segments. Mutation nudges wheel position, radius, torque, and chassis geometry.
-Choose 2–256 cars per generation, and set any course length from 100 to 30,000 metres. Adjust
-roughness, steepness, and obstacle frequency independently. The run seed drives both the starting population and terrain generation,
-so replaying the same seed and settings recreates the same experiment. Longer routes get
-deterministic rolling hills and rubble, and their simulation time budget scales with the finish
-distance.
+From there a real genetic algorithm takes over. Fitness-weighted random selection picks parents,
+crossover shuffles individual chassis, wheel-trait, and wheel-outline genes with the run's seeded
+RNG and swaps contiguous segments. Mutation nudges wheel position, radius, torque, and chassis
+geometry. Choose 2–256 cars per generation, and set any course length from 100 to 30,000 metres.
+Adjust roughness, steepness, and obstacle frequency independently. The run seed drives both the
+starting population and terrain generation, so replaying the same seed and settings recreates the
+same experiment. Longer routes get deterministic rolling hills and rubble, and their simulation
+time budget scales with the finish distance.
 
 ## Why it was worth building
 
@@ -44,7 +44,7 @@ rubble field that filters out the shapes that only topple forward, then a climb.
 
 ## Features
 
-- **Evolution engine** with tournament selection, crossover, and mutation over chassis geometry,
+- **Evolution engine** with fitness-weighted parent selection, crossover, and mutation over chassis geometry,
   wheel shape, radius, and torque, tuned so the fitness curve climbs steadily instead of solving
   the course by generation 4. Cars start with round wheel outlines of varied vertex counts that
   can deform and gain or lose points through evolution, just like the chassis outline.
