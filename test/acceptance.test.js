@@ -9,13 +9,25 @@ import { createDefaultTrack, finishX } from '../src/track.js';
 import { createRun, runAll, fitnessCurve, bestEver } from '../src/history.js';
 import { simulateGenome } from '../src/simulate.js';
 
-const track = createDefaultTrack();
+const track = createDefaultTrack({ length: 720 });
+const longTrack = createDefaultTrack({ length: 1200 });
 
 // One 40-generation run shared by the assertions below; recomputing it per test
 // would multiply an already slow suite.
 const run = createRun(track, { seed: 1, generations: 40 });
 runAll(run);
 const curve = fitnessCurve(run);
+
+const longRun = createRun(longTrack, { seed: 1, generations: 12 });
+runAll(longRun);
+
+test('[1.2] the default longer course is valid and seed 1 makes measurable progress', () => {
+  const first = longRun.history[0].bestFitness;
+  const last = longRun.history[11].bestFitness;
+  assert.equal(finishX(longTrack), 12000);
+  assert.ok(first > 0);
+  assert.ok(last > first * 2, `long-course progress was only ${first.toFixed(0)} -> ${last.toFixed(0)}`);
+});
 
 test('[1.1] generation 40 is at least 5x fitter than generation 0', () => {
   const first = curve[0].best;

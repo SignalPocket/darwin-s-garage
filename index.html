@@ -166,6 +166,100 @@
           <p id="progress-note" class="scrubber__note">Evolving…</p>
         </div>
 
+        <form id="seed-run" class="seed-run" aria-label="Evolution run settings">
+          <label class="seed-run__field" for="seed-input">
+            <span class="seed-run__label">Run seed</span>
+            <input
+              id="seed-input"
+              class="seed-run__input"
+              name="seed"
+              type="number"
+              inputmode="numeric"
+              min="0"
+              max="4294967295"
+              step="1"
+              value="1"
+              aria-describedby="seed-help"
+            />
+          </label>
+          <label class="seed-run__field" for="generations-input">
+            <span class="seed-run__label">Generations</span>
+            <input
+              id="generations-input"
+              class="seed-run__input"
+              name="generations"
+              type="number"
+              inputmode="numeric"
+              min="1"
+              step="1"
+              value="40"
+              aria-describedby="seed-help"
+            />
+          </label>
+          <label class="seed-run__field" for="course-length">
+            <span class="seed-run__label">Course length (m)</span>
+            <input
+              id="course-length"
+              class="seed-run__input"
+              name="courseLength"
+              type="number"
+              inputmode="numeric"
+              min="100"
+              max="30000"
+              step="1"
+              value="1200"
+              aria-describedby="seed-help"
+            />
+          </label>
+          <label class="seed-run__field seed-run__range" for="course-roughness">
+            <span class="seed-run__label">Roughness <output id="roughness-value">50</output></span>
+            <input
+              id="course-roughness"
+              class="slider slider--terrain"
+              name="roughness"
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              value="50"
+            />
+          </label>
+          <label class="seed-run__field seed-run__range" for="course-steepness">
+            <span class="seed-run__label">Steepness <output id="steepness-value">50</output></span>
+            <input
+              id="course-steepness"
+              class="slider slider--terrain"
+              name="steepness"
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              value="50"
+            />
+          </label>
+          <label class="seed-run__field seed-run__range" for="course-obstacles">
+            <span class="seed-run__label">Obstacle frequency <output id="obstacles-value">50</output></span>
+            <input
+              id="course-obstacles"
+              class="slider slider--terrain"
+              name="obstacleFrequency"
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              value="50"
+            />
+          </label>
+          <div class="seed-run__controls">
+            <button id="random-seed" class="btn" type="button">Random seed</button>
+            <button id="start-run" class="btn btn--primary" type="submit">Start run</button>
+          </div>
+          <p id="seed-help" class="seed-run__help">
+            The run seed drives both car evolution and course generation. Adjust length, roughness,
+            steepness, and obstacle frequency to shape a different course.
+          </p>
+        </form>
+
         <div class="console__buttons">
           <div class="transport" role="group" aria-label="Frame stepping">
             <button id="step-back" class="btn btn--icon" type="button" aria-label="Step back one frame">
@@ -210,17 +304,19 @@
             <h2 id="about-title" class="prose__title">Evolve a car out of scrap, in your browser</h2>
             <p>
             Darwin's Garage is a genetic algorithm car evolution simulator. It opens with 24
-            vehicles built out of random numbers: a polygon chassis of five to eight vertices,
-            wheels bolted to random corners at random radii, each wheel with its own torque.
+            vehicles built out of random numbers: a five-vertex polygon chassis, round wheels
+            bolted to random corners at random radii, each wheel with its own torque. Mutation can
+            add or remove chassis and wheel-outline vertices, then move them to reshape both.
             Nobody designed any of them, and most of generation 0 tips over inside a few metres.
           </p>
           <p>
             Every car then drives the same hill course inside a Matter.js physics simulation, and
             the distance it covers before it flips, stalls, or runs out of time becomes its
             fitness. Tournament selection picks the parents, crossover splices two chassis into a
-            child, mutation nudges the wheels, and the next generation rolls out. Forty
-            generations later the best car usually clears the full 720 metres. Nobody drew that
-            shape. Selection found it.
+            child, mutation nudges the wheels, and the next generation rolls out. Set any course
+            length from 100 to 30,000 metres and tune roughness, steepness, and obstacle frequency.
+            The run seed recreates both the course and population. Nobody drew the winning shape.
+            Selection found it.
           </p>
 
           <h3>What the three operators do</h3>
@@ -270,14 +366,14 @@
           <h4>Can I evolve a car on my phone?</h4>
           <p>
             Yes. The simulation runs on your device, the layout stacks into one column, and the
-            controls are sized for thumbs. It is 40 generations of real physics, so an older phone
-            takes longer to fill the slider, but it fills.
+            controls are sized for thumbs. Each generation runs real physics, so longer runs take
+            longer to fill the slider, especially on an older phone.
           </p>
 
           <h4>Is it really evolving, or just picking random winners?</h4>
           <p>
-            Watch the fitness curve. Generation 0 averages a handful of metres. By generation 20
-            the best car is usually finishing the course. Random search would give you a flat line
+            Watch the fitness curve. Generation 0 averages a handful of metres. With the default
+            seed, the best car finishes by generation 40. Random search would give you a flat line
             with noise on it, not a staircase.
           </p>
 

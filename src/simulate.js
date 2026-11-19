@@ -29,19 +29,19 @@ export const SIM_DEFAULTS = Object.freeze({
  * Create a resumable simulation. A single car can cost anywhere from 5ms to
  * 250ms depending on how many contacts it generates, so the caller — not this
  * module — decides how much to run at a time; that is what lets the page
- * compute 40 generations without ever blocking a frame.
+ * compute the configured run without ever blocking a frame.
  * @param {object} genome
  * @param {object} track
  * @param {object} [options]
  * @param {boolean} [options.recordFrames] - capture per-tick poses for replay.
- *   Off by default: a 40-generation run would otherwise retain millions of poses.
+ *   Off by default: a full run would otherwise retain millions of poses.
  * @returns {{step: (n?: number) => boolean, done: boolean, result: object, car: object}}
  */
 export function createSimulation(genome, track, options = {}) {
   if (!isValidTrack(track)) {
     throw new TypeError('createSimulation: track is not valid; validate it before simulating');
   }
-  const config = { ...SIM_DEFAULTS, ...options };
+  const config = { ...SIM_DEFAULTS, ...options, maxTicks: maxTicksForTrack(track, options) };
   const recordFrames = Boolean(options.recordFrames);
 
   const engine = Engine.create();
@@ -144,7 +144,7 @@ export function createSimulation(genome, track, options = {}) {
  */
 export function simulateGenome(genome, track, options = {}) {
   const sim = createSimulation(genome, track, options);
-  const config = { ...SIM_DEFAULTS, ...options };
+  const config = { ...SIM_DEFAULTS, ...options, maxTicks: maxTicksForTrack(track, options) };
   sim.step(config.maxTicks);
   return sim.result;
 }
@@ -152,6 +152,10 @@ export function simulateGenome(genome, track, options = {}) {
 /** Simulate and keep the per-tick poses, for replaying a single car. */
 export function replayGenome(genome, track, options = {}) {
   return simulateGenome(genome, track, { ...options, recordFrames: true });
+}
+
+function maxTicksForTrack(track, options) {
+  return options.maxTicks ?? Math.max(1, Math.ceil((SIM_DEFAULTS.maxTicks * finishX(track)) / 7200));
 }
 
 /** Static terrain bodies for a track: one rotated slab per segment. */

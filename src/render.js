@@ -239,23 +239,29 @@ export function createRenderer(canvas) {
 
     // Wheels first so the chassis plate reads as sitting over the axles.
     pose.wheels.forEach((wheel, i) => {
-      const radius = (anchors[i]?.radius ?? wheel.radius ?? 12) * s;
+      const outline = anchors[i]?.outline;
       const p = toScreen(wheel.x, wheel.y);
       ctx.save();
       ctx.translate(p.x, p.y);
       ctx.rotate(wheel.angle ?? 0);
       ctx.beginPath();
-      ctx.arc(0, 0, radius, 0, Math.PI * 2);
+      outline.forEach((point, pointIndex) => {
+        const x = point.x * s;
+        const y = point.y * s;
+        if (pointIndex === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.closePath();
       ctx.fillStyle = ghost ? 'rgba(43, 38, 32, 0.18)' : '#332d26';
       ctx.fill();
       if (!ghost) {
         ctx.strokeStyle = PALETTE.surface2;
         ctx.lineWidth = Math.max(1, 2 * s);
         ctx.stroke();
-        // A spoke, so rotation is legible — a plain disc looks static.
+        // A line across the wheel makes rotation legible.
         ctx.beginPath();
-        ctx.moveTo(-radius * 0.75, 0);
-        ctx.lineTo(radius * 0.75, 0);
+        ctx.moveTo(outline[0].x * s, outline[0].y * s);
+        ctx.lineTo(outline[Math.floor(outline.length / 2)].x * s, outline[Math.floor(outline.length / 2)].y * s);
         ctx.strokeStyle = anchors[i]?.torque > 0 ? PALETTE.accentSupport : PALETTE.muted;
         ctx.lineWidth = Math.max(1, 2.5 * s);
         ctx.stroke();

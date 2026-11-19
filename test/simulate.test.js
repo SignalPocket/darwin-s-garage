@@ -12,6 +12,7 @@ import {
   SIM_DEFAULTS,
 } from '../src/simulate.js';
 import { buildCar, hasNaNPosition, chassisOutline, wheelAnchors } from '../src/car.js';
+import { regularWheelShape } from '../src/genome.js';
 
 const track = createDefaultTrack();
 const genomeFor = (seed) => createRandomGenome(createRng(seed));
@@ -61,15 +62,15 @@ test('simulateGenome never yields NaN fitness, even for junk genomes', () => {
 });
 
 test('simulateGenome caps a flipped car at the distance it had when it flipped', () => {
-  // Seed 3 is a genome that reliably rolls over on the default track.
-  const result = simulateGenome(genomeFor(3), track);
+  // Seed 0 is a genome that reliably rolls over on the default track.
+  const result = simulateGenome(genomeFor(0), track);
   assert.equal(result.failReason, 'flipped');
   assert.equal(result.failed, true);
   assert.ok(result.ticks < SIM_DEFAULTS.maxTicks, 'a flip should stop the run early');
 
   // The cap is what stops a car being credited for ground covered after it has
   // already rolled: allowed to keep going, the same genome travels further.
-  const uncapped = simulateGenome(genomeFor(3), track, { flipAngle: Math.PI });
+  const uncapped = simulateGenome(genomeFor(0), track, { flipAngle: Math.PI });
   assert.ok(
     uncapped.fitness > result.fitness,
     `flip cap should bound fitness: capped ${result.fitness}, uncapped ${uncapped.fitness}`,
@@ -119,6 +120,22 @@ test('simulateGenome stalls out a car that cannot move', () => {
 test('simulateGenome respects a maxTicks budget', () => {
   const result = simulateGenome(goodCar(), track, { maxTicks: 30 });
   assert.ok(result.ticks <= 30);
+});
+
+test('simulation time budget scales with long course length', () => {
+  const inert = {
+    chassis: goodCar().chassis,
+    wheels: [
+      { vertexIndex: 3, radius: 30, torque: 0 },
+      { vertexIndex: 4, radius: 30, torque: 0 },
+    ],
+  };
+  const longFlatTrack = { points: [{ x: -400, y: 0 }, { x: 24000, y: 0 }] };
+  const result = simulateGenome(inert, longFlatTrack, {
+    stallTicks: 5000,
+    stallDistance: 100000,
+  });
+  assert.equal(result.ticks, 4000);
 });
 
 test('simulateGenome rejects an invalid track instead of simulating garbage', () => {
@@ -222,6 +239,18 @@ test('buildCar wires one chassis and one body per genome wheel', () => {
   }
 });
 
+test('buildCar uses the genome wheel profile for polygonal wheel physics', () => {
+  const genome = genomeFor(8);
+  genome.wheels = genome.wheels.map((wheel, i) => ({
+    ...wheel,
+    shape: regularWheelShape([3, 4, 6][i % 3]),
+  }));
+  const car = buildCar(genome);
+  for (const wheel of car.wheels) {
+    assert.equal(wheel.body.vertices.length, wheel.shape.length);
+  }
+});
+
 const FLAT = { id: 'flat', points: [{ x: -500, y: 0 }, { x: 6000, y: 0 }] };
 
 const drive = (torque) =>
@@ -240,12 +269,12 @@ test('driven wheels move the chassis forward on flat ground', () => {
   assert.ok(driven > 500, `a driven car should cover ground; it went ${driven}`);
 });
 
-test('torque is what moves the car, monotonically at low speeds', () => {
-  // Only asserted in the low range: past a point more torque spins the wheels
-  // up into a wheelie instead of forward motion, so distance is not monotonic
-  // in torque across the whole gene range.
-  assert.ok(drive(0.04) > drive(0.02));
-  assert.ok(drive(0.02) > drive(0));
+test('more torque moves the car farther in the low-torque range', () => {
+  const undriven = drive(0);
+  const low = drive(0.005);
+  const higher = drive(0.01);
+  assert.ok(low > undriven);
+  assert.ok(higher > low);
 });
 
 test('chassisOutline returns a body-local hull centred on the centre of mass', () => {

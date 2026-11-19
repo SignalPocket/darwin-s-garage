@@ -12,10 +12,10 @@ import {
 
 const L = GENOME_LIMITS;
 
-test('createRandomGenome produces a chassis within the vertex limits', () => {
+test('createRandomGenome starts with five chassis vertices', () => {
   for (let seed = 0; seed < 200; seed += 1) {
     const genome = createRandomGenome(createRng(seed));
-    assert.ok(genome.chassis.length >= L.minVertices && genome.chassis.length <= L.maxVertices);
+    assert.equal(genome.chassis.length, 5);
   }
 });
 
@@ -28,6 +28,8 @@ test('createRandomGenome produces wheels with valid indices, radii, and torques'
       assert.ok(wheel.vertexIndex >= 0 && wheel.vertexIndex < genome.chassis.length);
       assert.ok(wheel.radius >= L.minWheelRadius && wheel.radius <= L.maxWheelRadius);
       assert.ok(wheel.torque >= L.minTorque && wheel.torque <= L.maxTorque);
+      assert.ok(Array.isArray(wheel.shape));
+      assert.ok(wheel.shape.length >= 10 && wheel.shape.length <= L.maxWheelVertices);
     }
   }
 });

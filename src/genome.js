@@ -1,17 +1,19 @@
 // A genome describes one vehicle: a polygonal chassis plus a set of wheels,
-// each attached at a chassis vertex with its own radius and motor torque. The
+// each attached at a chassis vertex with its own radius, motor torque, and shape. The
 // evolution engine, the physics builder, and the share-link encoder all consume
 // this shape, so it stays plain JSON-serializable data rather than a class.
 
 import { randomInt, randomFloat } from './rng.js';
 
 export const GENOME_LIMITS = Object.freeze({
-  minVertices: 5,
+  minVertices: 4,
   maxVertices: 8,
   minWheels: 2,
   maxWheels: 4,
   minWheelRadius: 10,
   maxWheelRadius: 35,
+  minWheelVertices: 3,
+  maxWheelVertices: 36,
   // Zero is a real gene, not a floor to clamp away: an undriven wheel that just
   // rolls is often the better design, and evolution should be free to find that.
   minTorque: 0,
@@ -20,6 +22,9 @@ export const GENOME_LIMITS = Object.freeze({
   minVertexRadius: 15,
   maxVertexRadius: 110,
 });
+
+export const LEGACY_WHEEL_SHAPES = Object.freeze(['circle', 'triangle', 'square', 'hexagon']);
+const DEFAULT_CIRCLE_VERTICES = 24;
 
 export function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -46,6 +51,10 @@ export function quantizeTorque(value) {
   return unsignZero(Math.round(value * 1000) / 1000);
 }
 
+export function quantizeWheelPoint(value) {
+  return unsignZero(Math.round(value * 1000) / 1000);
+}
+
 /**
  * Build a random genome from a seeded rng.
  * Chassis vertices are laid out around a circle with per-vertex jitter, which
@@ -54,9 +63,9 @@ export function quantizeTorque(value) {
  */
 export function createRandomGenome(rng) {
   assertRng(rng, 'createRandomGenome');
-  const { minVertices, maxVertices, minWheels, maxWheels, chassisRadius } = GENOME_LIMITS;
+  const { minWheels, maxWheels, chassisRadius } = GENOME_LIMITS;
 
-  const vertexCount = randomInt(rng, minVertices, maxVertices);
+  const vertexCount = 5;
   const chassis = Array.from({ length: vertexCount }, (_, i) => {
     const angle = (i / vertexCount) * Math.PI * 2;
     const jitter = 0.5 + rng();
@@ -71,6 +80,7 @@ export function createRandomGenome(rng) {
     vertexIndex: randomInt(rng, 0, vertexCount - 1),
     radius: randomFloat(rng, GENOME_LIMITS.minWheelRadius, GENOME_LIMITS.maxWheelRadius),
     torque: randomFloat(rng, GENOME_LIMITS.minTorque, GENOME_LIMITS.maxTorque),
+    shape: 'circle',
   }));
 
   // Normalized on the way out so every genome in the system — random, bred, or
@@ -109,19 +119,30 @@ export function normalizeGenome(genome) {
   const nextWheels = wheels
     .filter((w) => w && Number.isFinite(w.radius) && Number.isFinite(w.vertexIndex))
     .slice(0, GENOME_LIMITS.maxWheels)
-    .map((w) => ({
-      vertexIndex: clamp(Math.round(w.vertexIndex), 0, nextChassis.length - 1),
-      radius: quantizeLength(
+    .map((w) => {
+      const radius = quantizeLength(
         clamp(w.radius, GENOME_LIMITS.minWheelRadius, GENOME_LIMITS.maxWheelRadius),
-      ),
-      torque: quantizeTorque(
-        clamp(
-          Number.isFinite(w.torque) ? w.torque : GENOME_LIMITS.minTorque,
-          GENOME_LIMITS.minTorque,
-          GENOME_LIMITS.maxTorque,
+      );
+      let shape;
+      try {
+        shape = normalizeWheelShape(w.shape);
+      } catch {
+        return null;
+      }
+      return {
+        vertexIndex: clamp(Math.round(w.vertexIndex), 0, nextChassis.length - 1),
+        radius,
+        torque: quantizeTorque(
+          clamp(
+            Number.isFinite(w.torque) ? w.torque : GENOME_LIMITS.minTorque,
+            GENOME_LIMITS.minTorque,
+            GENOME_LIMITS.maxTorque,
+          ),
         ),
-      ),
-    }));
+        shape,
+      };
+    })
+    .filter(Boolean);
   if (nextWheels.length < GENOME_LIMITS.minWheels) {
     throw new RangeError(
       `normalizeGenome: genome needs at least ${GENOME_LIMITS.minWheels} valid wheels, got ${nextWheels.length}`,
@@ -145,8 +166,45 @@ export function isValidGenome(genome) {
 export function cloneGenome(genome) {
   return {
     chassis: genome.chassis.map((p) => ({ x: p.x, y: p.y })),
-    wheels: genome.wheels.map((w) => ({ ...w })),
+    wheels: genome.wheels.map((w) => ({
+      ...w,
+      shape: w.shape.map((point) => ({ ...point })),
+    })),
   };
+}
+
+export function regularWheelShape(vertexCount) {
+  return Array.from({ length: vertexCount }, (_, i) => {
+    const angle = ((i + 0.5) / vertexCount) * Math.PI * 2;
+    return {
+      x: quantizeWheelPoint(Math.cos(angle)),
+      y: quantizeWheelPoint(Math.sin(angle)),
+    };
+  });
+}
+
+function normalizeWheelShape(shape) {
+  if (shape === undefined || shape === 'circle') {
+    return regularWheelShape(DEFAULT_CIRCLE_VERTICES);
+  }
+  if (typeof shape === 'string') {
+    const legacySides = { triangle: 3, square: 4, hexagon: 6 }[shape];
+    if (!legacySides) throw new TypeError('wheel shape is invalid');
+    return regularWheelShape(legacySides);
+  }
+  if (!Array.isArray(shape)) throw new TypeError('wheel shape must be a point array');
+
+  const points = shape
+    .filter((point) => point && Number.isFinite(point.x) && Number.isFinite(point.y))
+    .slice(0, GENOME_LIMITS.maxWheelVertices)
+    .map((point) => ({
+      x: quantizeWheelPoint(clamp(point.x, -1, 1)),
+      y: quantizeWheelPoint(clamp(point.y, -1, 1)),
+    }));
+  if (points.length < GENOME_LIMITS.minWheelVertices || isDegenerate(points)) {
+    throw new RangeError('wheel shape needs at least three non-collinear points');
+  }
+  return points;
 }
 
 // A chassis that hulls to zero area (every vertex on one line, or all

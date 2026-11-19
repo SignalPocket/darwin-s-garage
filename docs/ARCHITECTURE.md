@@ -30,8 +30,8 @@ Nothing below `main.js` touches the DOM. Nothing above `car.js` touches Matter.j
 | File | Responsibility |
 |---|---|
 | `src/rng.js` | Seedable mulberry32 PRNG. **Nothing in the evolution or physics path may call `Math.random`** — it would break replay. |
-| `src/genome.js` | The genome: a polygon chassis (5–8 vertices) + 2–4 wheels (vertex index, radius, torque). Plain JSON data. `normalizeGenome` is the gatekeeper — it clamps every field into `GENOME_LIMITS` and **quantizes to the share encoder's grid** (whole pixels, 3-decimal torque). |
-| `src/track.js` | Terrain as an ordered control-point list, plus the built-in hill-climb course. `validateTrack` returns readable problems rather than throwing, because the editor shows them inline. |
+| `src/genome.js` | The genome: a polygon chassis (4–8 vertices) + 2–4 wheels (vertex index, radius, torque, polygon outline). New cars start with five chassis vertices and round wheels; mutation may vary both outlines. Plain JSON data. `normalizeGenome` is the gatekeeper — it clamps every field into `GENOME_LIMITS` and **quantizes to the share encoder's grid** (whole pixels, 3-decimal torque). |
+| `src/track.js` | Terrain as an ordered control-point list, plus seeded hill generation configurable by length, roughness, steepness, and obstacle frequency. `validateTrack` returns readable problems rather than throwing, because the editor shows them inline. |
 | `src/car.js` | The only place genomes become Matter bodies. Hulls the chassis, pins wheels with zero-length rigid constraints (a pin joint = a driven axle). Also exposes `chassisOutline`/`wheelAnchors` so the renderer can draw a car without building physics for it. |
 | `src/simulate.js` | Runs one genome against one track. `createSimulation` is a **resumable stepper**; `simulateGenome` runs it to completion. Fitness = max horizontal distance reached. |
 | `src/evolution.js` | Tournament selection, crossover, mutation. Pure data transforms; no physics. |
@@ -39,7 +39,7 @@ Nothing below `main.js` touches the DOM. Nothing above `car.js` touches Matter.j
 | `src/render.js` | Canvas drawing + camera. Reads state, paints it, advances nothing. `viewScale` caps both the world width and height the viewport may show and takes whichever binds, so a car reads at the same fraction of the frame on a phone as on a desktop. |
 | `src/confetti.js` | Pure particle model (spawn/step) for the best-ever celebration burst. Decorative UI, so `Math.random` is fine here — it never touches the physics/RNG path. |
 | `src/audio.js` | WebAudio SFX synthesized in code. Zero audio files. |
-| `src/share.js` | Encodes `{genome, generation, trackId}` into a URL param, with an FNV-1a checksum on the tail — without one, most truncations still parse and hand back a *different* car. `decodeShare` returns a result object and never throws. |
+| `src/share.js` | Encodes `{genome, generation, trackId}` into a URL param, with an FNV-1a checksum on the tail — without one, most truncations still parse and hand back a *different* car. Course settings are identified by `trackId`; `decodeShare` returns a result object and never throws. |
 | `src/main.js` | The seam: owns the DOM, the rAF loop, and the run. |
 | `src/style.css` | The scrapyard-workshop tokens from `docs/DESIGN.md`. |
 
@@ -71,11 +71,11 @@ in a test needs both `mutationRate` and `crossoverRate`.
 design that evolution should be able to find. It also means "motor off" is a
 real control condition in tests.
 
-**The default track is tuned, not drawn by eye.** Earlier shapes were solved by
-generation 4, leaving the slider nothing to show. Rubble amplitude and climb
-height hold generation 0 to ~8% of the course while leaving a gradient to climb.
-If you change the track, re-run `test/acceptance.test.js` — it guards the wow
-moment.
+**The generated track is seedable.** The run seed initializes both the starting
+population and terrain generator; length and terrain controls parameterize that
+generator. The same seed and settings recreate the same track. Simulation ticks
+scale with course length. If you change the generated terrain, re-run
+`test/acceptance.test.js` — it guards the evolution progress.
 
 ## Known limitation: cross-engine determinism
 

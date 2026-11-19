@@ -55,13 +55,15 @@ export function buildCar(genome, origin = {}) {
     // the same offset expresses the attachment point relative to the chassis's
     // centre of mass — valid even when hulling dropped that vertex.
     const offset = { x: vertex.x - centre.x, y: vertex.y - centre.y };
-    const body = Bodies.circle(x + offset.x, y + offset.y, wheel.radius, {
+    const options = {
       label: `wheel-${i}`,
       density: CAR_PHYSICS.wheelDensity,
       friction: CAR_PHYSICS.wheelFriction,
       frictionStatic: CAR_PHYSICS.wheelFrictionStatic,
       collisionFilter: { group: CAR_COLLISION_GROUP },
-    });
+    };
+    const outline = wheelOutline(wheel);
+    const body = Bodies.fromVertices(x + offset.x, y + offset.y, [outline], options);
     // A zero-length rigid constraint is a pin joint: the wheel is held at the
     // vertex but spins freely, which is exactly a driven axle.
     const constraint = Constraint.create({
@@ -73,7 +75,14 @@ export function buildCar(genome, origin = {}) {
       stiffness: 1,
     });
     parts.push(body, constraint);
-    return { body, constraint, torque: wheel.torque, radius: wheel.radius };
+    return {
+      body,
+      constraint,
+      torque: wheel.torque,
+      radius: wheel.radius,
+      shape: wheel.shape,
+      outline,
+    };
   });
 
   const composite = Composite.create({ label: 'car' });
@@ -148,8 +157,20 @@ export function wheelAnchors(genome) {
       y: vertex.y - centre.y,
       radius: wheel.radius,
       torque: wheel.torque,
+      outline: wheelOutline(wheel),
     };
   });
+}
+
+/** Convex wheel outline in body-local units, shared by physics and drawing. */
+export function wheelOutline(wheel) {
+  const scaled = wheel.shape.map((point) => ({
+    x: point.x * wheel.radius,
+    y: point.y * wheel.radius,
+  }));
+  const hull = Vertices.hull(scaled);
+  const centre = Vertices.centre(hull);
+  return hull.map((point) => ({ x: point.x - centre.x, y: point.y - centre.y }));
 }
 
 /** Rest the car on the ground: the y at which its lowest point touches height. */
@@ -160,7 +181,8 @@ export function lowestOffset(genome) {
   let lowest = Math.max(...hull.map((p) => p.y - centre.y));
   for (const wheel of safe.wheels) {
     const vertex = safe.chassis[wheel.vertexIndex];
-    lowest = Math.max(lowest, vertex.y - centre.y + wheel.radius);
+    const wheelBottom = Math.max(...wheelOutline(wheel).map((point) => point.y));
+    lowest = Math.max(lowest, vertex.y - centre.y + wheelBottom);
   }
   return lowest;
 }

@@ -3,7 +3,13 @@
 // and the page.
 
 import './style.css';
-import { createDefaultTrack, DEFAULT_TRACK_ID } from './track.js';
+import {
+  createDefaultTrack,
+  COURSE_LIMITS,
+  DEFAULT_COURSE_LENGTH,
+  DEFAULT_TERRAIN_SETTING,
+  courseSettingsFromTrackId,
+} from './track.js';
 import { createRun, runAllAsync, bestEver, fitnessCurve } from './history.js';
 import { replayGenome } from './simulate.js';
 import { createRenderer, cameraTarget, PALETTE } from './render.js';
@@ -40,6 +46,18 @@ const dom = {
   population: el('population'),
   floorHint: el('floor-hint'),
   shareError: el('share-error'),
+  seedRun: el('seed-run'),
+  seedInput: el('seed-input'),
+  generationsInput: el('generations-input'),
+  courseLength: el('course-length'),
+  courseRoughness: el('course-roughness'),
+  courseSteepness: el('course-steepness'),
+  courseObstacles: el('course-obstacles'),
+  roughnessValue: el('roughness-value'),
+  steepnessValue: el('steepness-value'),
+  obstaclesValue: el('obstacles-value'),
+  randomSeed: el('random-seed'),
+  startRun: el('start-run'),
   statGeneration: el('stat-generation'),
   statFitness: el('stat-fitness'),
   statPopulation: el('stat-population'),
@@ -50,12 +68,107 @@ const dom = {
 const reducedMotion =
   typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-const track = createDefaultTrack();
+const initialShare = readShare(window.location.href);
 const renderer = createRenderer(dom.scene);
 const audio = createAudio();
+const SEED_PARAM = 'seed';
+const GENERATIONS_PARAM = 'generations';
+const COURSE_LENGTH_PARAM = 'courseLength';
+const ROUGHNESS_PARAM = 'roughness';
+const STEEPNESS_PARAM = 'steepness';
+const OBSTACLE_FREQUENCY_PARAM = 'obstacleFrequency';
+const RUN_DEFAULT_SEED = 1;
+const RUN_DEFAULT_GENERATIONS = 40;
+
+function readInitialSeed() {
+  const url = new URL(window.location.href);
+  const raw = url.searchParams.get(SEED_PARAM);
+  if (raw === null) return RUN_DEFAULT_SEED;
+  const seed = Number(raw);
+  return Number.isInteger(seed) && seed >= 0 && seed <= 0xffffffff
+    ? seed
+    : RUN_DEFAULT_SEED;
+}
+
+function readInitialGenerations() {
+  const url = new URL(window.location.href);
+  const raw = url.searchParams.get(GENERATIONS_PARAM);
+  if (raw === null) return RUN_DEFAULT_GENERATIONS;
+  const generations = Number(raw);
+  return Number.isSafeInteger(generations) && generations >= 1
+    ? generations
+    : RUN_DEFAULT_GENERATIONS;
+}
+
+function readInitialCourse() {
+  if (initialShare?.ok) {
+    const sharedSettings = courseSettingsFromTrackId(initialShare.value.trackId);
+    if (sharedSettings) return sharedSettings;
+  }
+  const url = new URL(window.location.href);
+  const legacyDifficulty = url.searchParams.get('difficulty');
+  const legacySetting = { easy: 30, standard: 50, hard: 77 }[legacyDifficulty];
+  return {
+    length: readIntegerParam(
+      url.searchParams.get(COURSE_LENGTH_PARAM),
+      DEFAULT_COURSE_LENGTH,
+      COURSE_LIMITS.minLength,
+      COURSE_LIMITS.maxLength,
+    ),
+    roughness: readIntegerParam(
+      url.searchParams.get(ROUGHNESS_PARAM),
+      legacySetting ?? DEFAULT_TERRAIN_SETTING,
+      COURSE_LIMITS.minTerrainSetting,
+      COURSE_LIMITS.maxTerrainSetting,
+    ),
+    steepness: readIntegerParam(
+      url.searchParams.get(STEEPNESS_PARAM),
+      legacySetting ?? DEFAULT_TERRAIN_SETTING,
+      COURSE_LIMITS.minTerrainSetting,
+      COURSE_LIMITS.maxTerrainSetting,
+    ),
+    obstacleFrequency: readIntegerParam(
+      url.searchParams.get(OBSTACLE_FREQUENCY_PARAM),
+      DEFAULT_TERRAIN_SETTING,
+      COURSE_LIMITS.minTerrainSetting,
+      COURSE_LIMITS.maxTerrainSetting,
+    ),
+    seed: initialSeed,
+  };
+}
+
+function readIntegerParam(raw, fallback, min, max) {
+  if (raw === null) return fallback;
+  const value = Number(raw);
+  return Number.isInteger(value) && value >= min && value <= max ? value : fallback;
+}
+
+function syncCourseOutputs() {
+  dom.roughnessValue.value = dom.courseRoughness.value;
+  dom.roughnessValue.textContent = dom.courseRoughness.value;
+  dom.steepnessValue.value = dom.courseSteepness.value;
+  dom.steepnessValue.textContent = dom.courseSteepness.value;
+  dom.obstaclesValue.value = dom.courseObstacles.value;
+  dom.obstaclesValue.textContent = dom.courseObstacles.value;
+}
+
+function randomSeed() {
+  if (typeof globalThis.crypto !== 'undefined' && globalThis.crypto.getRandomValues) {
+    return globalThis.crypto.getRandomValues(new Uint32Array(1))[0];
+  }
+  return Math.floor(Math.random() * 0xffffffff) >>> 0;
+}
+
+const initialSeed = readInitialSeed();
+const initialGenerations = readInitialGenerations();
+const initialCourse = readInitialCourse();
+const track = createDefaultTrack(initialCourse);
 
 const state = {
-  run: createRun(track, { trackId: DEFAULT_TRACK_ID }),
+  run: createRun(track, {
+    seed: initialSeed,
+    generations: initialGenerations,
+  }),
   generation: 0,
   individual: null, // null = "the best of this generation"
   playback: null,
@@ -330,7 +443,9 @@ function drawSilhouette(canvas, genome, isBest) {
   const anchors = wheelAnchors(genome);
   const extent = Math.max(
     ...outline.map((p) => Math.hypot(p.x, p.y)),
-    ...anchors.map((a) => Math.hypot(a.x, a.y) + a.radius),
+    ...anchors.flatMap((anchor) =>
+      anchor.outline.map((point) => Math.hypot(anchor.x + point.x, anchor.y + point.y)),
+    ),
     1,
   );
   const scale = Math.min(rect.width, 58) / (extent * 2.35);
@@ -339,7 +454,13 @@ function drawSilhouette(canvas, genome, isBest) {
 
   for (const anchor of anchors) {
     ctx.beginPath();
-    ctx.arc(anchor.x, anchor.y, anchor.radius, 0, Math.PI * 2);
+    anchor.outline.forEach((point, index) => {
+      const x = anchor.x + point.x;
+      const y = anchor.y + point.y;
+      if (index === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.closePath();
     ctx.fillStyle = '#332d26';
     ctx.fill();
   }
@@ -458,10 +579,15 @@ function stepFrame(delta) {
 }
 
 function buildShareUrl(genome, generation) {
-  return shareUrl(
-    { genome, generation, trackId: DEFAULT_TRACK_ID },
-    window.location.href.split('?')[0],
+  const url = new URL(
+    shareUrl({ genome, generation, trackId: state.run.track.id }, window.location.href.split('?')[0]),
   );
+  url.searchParams.set(SEED_PARAM, String(state.run.track.seed));
+  url.searchParams.set(COURSE_LENGTH_PARAM, String(state.run.track.length));
+  url.searchParams.set(ROUGHNESS_PARAM, String(state.run.track.roughness));
+  url.searchParams.set(STEEPNESS_PARAM, String(state.run.track.steepness));
+  url.searchParams.set(OBSTACLE_FREQUENCY_PARAM, String(state.run.track.obstacleFrequency));
+  return url.toString();
 }
 
 /** Copy a share URL to the clipboard, falling back to a prompt; reports success. */
@@ -478,6 +604,81 @@ async function writeShareLink(url) {
 }
 
 function wireControls() {
+  dom.seedInput.value = String(initialSeed);
+  dom.generationsInput.value = String(initialGenerations);
+  dom.courseLength.value = String(initialCourse.length);
+  dom.courseRoughness.value = String(initialCourse.roughness);
+  dom.courseSteepness.value = String(initialCourse.steepness);
+  dom.courseObstacles.value = String(initialCourse.obstacleFrequency);
+  syncCourseOutputs();
+
+  for (const input of [dom.courseRoughness, dom.courseSteepness, dom.courseObstacles]) {
+    input.addEventListener('input', syncCourseOutputs);
+  }
+
+  dom.randomSeed.addEventListener('click', () => {
+    audio.unlock();
+    dom.seedInput.value = String(randomSeed());
+  });
+
+  dom.seedRun.addEventListener('submit', (event) => {
+    event.preventDefault();
+    audio.unlock();
+    const seed = Number(dom.seedInput.value);
+    if (!Number.isInteger(seed) || seed < 0 || seed > 0xffffffff) {
+      dom.seedInput.setCustomValidity('Enter a whole seed from 0 to 4294967295.');
+      dom.seedInput.reportValidity();
+      return;
+    }
+    const generations = Number(dom.generationsInput.value);
+    if (!Number.isSafeInteger(generations) || generations < 1) {
+      dom.generationsInput.setCustomValidity('Enter a positive whole number.');
+      dom.generationsInput.reportValidity();
+      return;
+    }
+    const courseLength = Number(dom.courseLength.value);
+    if (
+      !Number.isInteger(courseLength) ||
+      courseLength < COURSE_LIMITS.minLength ||
+      courseLength > COURSE_LIMITS.maxLength
+    ) {
+      dom.courseLength.setCustomValidity(
+        `Enter a whole number from ${COURSE_LIMITS.minLength} to ${COURSE_LIMITS.maxLength}.`,
+      );
+      dom.courseLength.reportValidity();
+      return;
+    }
+    const roughness = Number(dom.courseRoughness.value);
+    const steepness = Number(dom.courseSteepness.value);
+    const obstacleFrequency = Number(dom.courseObstacles.value);
+    if (
+      [roughness, steepness, obstacleFrequency].some(
+        (value) =>
+          !Number.isInteger(value) ||
+          value < COURSE_LIMITS.minTerrainSetting ||
+          value > COURSE_LIMITS.maxTerrainSetting,
+      )
+    ) {
+      dom.courseRoughness.setCustomValidity('Terrain settings must be whole numbers from 0 to 100.');
+      dom.courseRoughness.reportValidity();
+      return;
+    }
+    dom.seedInput.setCustomValidity('');
+    dom.generationsInput.setCustomValidity('');
+    dom.courseLength.setCustomValidity('');
+    dom.courseRoughness.setCustomValidity('');
+    const url = new URL(window.location.href);
+    url.searchParams.set(SEED_PARAM, String(seed));
+    url.searchParams.set(GENERATIONS_PARAM, String(generations));
+    url.searchParams.set(COURSE_LENGTH_PARAM, String(courseLength));
+    url.searchParams.set(ROUGHNESS_PARAM, String(roughness));
+    url.searchParams.set(STEEPNESS_PARAM, String(steepness));
+    url.searchParams.set(OBSTACLE_FREQUENCY_PARAM, String(obstacleFrequency));
+    url.searchParams.delete('difficulty');
+    url.searchParams.delete(SHARE_PARAM);
+    window.location.assign(url);
+  });
+
   dom.slider.addEventListener('input', () => {
     audio.unlock();
     selectGeneration(Number(dom.slider.value), { fromUser: true });
@@ -577,7 +778,7 @@ function wireControls() {
 /* ---------- share links ---------- */
 
 function loadSharedCar() {
-  const share = readShare(window.location.href);
+  const share = initialShare;
   if (share === null) return false;
   if (!share.ok) {
     dom.shareError.textContent = `${share.error} Showing a fresh run instead.`;
@@ -586,6 +787,11 @@ function loadSharedCar() {
     const url = new URL(window.location.href);
     url.searchParams.delete(SHARE_PARAM);
     window.history.replaceState({}, '', url);
+    return false;
+  }
+  if (!courseSettingsFromTrackId(share.value.trackId)) {
+    dom.shareError.textContent = 'This share link refers to a course this version cannot open.';
+    dom.shareError.hidden = false;
     return false;
   }
   state.guest = share.value;
@@ -617,7 +823,7 @@ async function boot() {
         if (!hadGuest) selectGeneration(0);
       }
       // Let the slider reach whatever has been computed so far, so the page is
-      // scrubbable long before all 40 generations are in.
+      // scrubbable long before the configured run is complete.
       syncSlider();
       renderHud();
 

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRng } from '../src/rng.js';
-import { createRandomGenome } from '../src/genome.js';
+import { createRandomGenome, normalizeGenome } from '../src/genome.js';
 import { mutate, crossover } from '../src/evolution.js';
 import { createDefaultTrack, DEFAULT_TRACK_ID } from '../src/track.js';
 import { simulateGenome } from '../src/simulate.js';
@@ -30,13 +30,33 @@ const signedLink = (body) => {
 };
 
 test('a share round-trips the genome, generation, and track', () => {
-  const run = { genome: genomeFor(3), generation: 17, trackId: DEFAULT_TRACK_ID };
+  const genome = genomeFor(3);
+  genome.wheels[0].shape = [
+    { x: 0, y: -1 },
+    { x: 0.8, y: -0.5 },
+    { x: 0.6, y: 0.6 },
+    { x: -0.2, y: 1 },
+    { x: -1, y: 0 },
+  ];
+  const run = { genome, generation: 17, trackId: DEFAULT_TRACK_ID };
   const decoded = decodeShare(encodeShare(run));
   assert.equal(decoded.ok, true);
   assert.equal(decoded.value.generation, 17);
   assert.equal(decoded.value.trackId, DEFAULT_TRACK_ID);
   assert.equal(decoded.value.genome.chassis.length, run.genome.chassis.length);
   assert.equal(decoded.value.genome.wheels.length, run.genome.wheels.length);
+  assert.deepEqual(
+    decoded.value.genome.wheels[0].shape,
+    normalizeGenome(run.genome).wheels[0].shape,
+  );
+});
+
+test('a share preserves a configurable course identifier', () => {
+  const decoded = decodeShare(
+    encodeShare({ genome: genomeFor(8), generation: 12, trackId: 'hill-2400-hard' }),
+  );
+  assert.equal(decoded.ok, true);
+  assert.equal(decoded.value.trackId, 'hill-2400-hard');
 });
 
 test('a shared car replays to the same fitness as the original run', () => {
@@ -65,7 +85,7 @@ test('encoding is stable: the same run always yields the same link', () => {
 test('a share link is URL-safe and short enough to paste', () => {
   const encoded = encodeShare({ genome: genomeFor(1), generation: 40 });
   assert.match(encoded, /^[A-Za-z0-9\-_]+$/);
-  assert.ok(encoded.length < 220, `share payload was ${encoded.length} chars`);
+  assert.ok(encoded.length < 1000, `share payload was ${encoded.length} chars`);
 });
 
 test('encodeShare defaults to generation 0 on the built-in track', () => {
@@ -123,6 +143,27 @@ test('decodeShare rejects a link whose body was edited under a stale checksum', 
   const tampered = signedLink(body).replace(/.$/, (c) => (c === 'A' ? 'B' : 'A'));
   const result = decodeShare(tampered);
   assert.equal(result.ok, false);
+});
+
+test('decodeShare preserves old links as round wheels', () => {
+  const encoded = signedLink(
+    '1|0|default-hill|60,0;18,57;-48,35;-48,-35;18,-57|0,20,0.05;1,20,0.05',
+  );
+  const result = decodeShare(encoded);
+  assert.equal(result.ok, true);
+  assert.ok(
+    result.value.genome.wheels.every((wheel) => wheel.shape.length >= 10),
+  );
+});
+
+test('decodeShare accepts version-2 named wheel profiles', () => {
+  const encoded = signedLink(
+    '2|0|default-hill|60,0;18,57;-48,35;-48,-35;18,-57|0,20,0.05,3;1,20,0.05,0',
+  );
+  const result = decodeShare(encoded);
+  assert.equal(result.ok, true);
+  assert.equal(result.value.genome.wheels[0].shape.length, 6);
+  assert.equal(result.value.genome.wheels[1].shape.length, 8);
 });
 
 test('decodeShare rejects a payload describing a structurally impossible car', () => {

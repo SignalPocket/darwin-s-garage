@@ -6,8 +6,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-d5541a.svg)](LICENSE)
 
 Evolve a car out of scrap, in your browser. Twenty-four vehicles built from random numbers drive
-a hill course under real 2D physics, the ones that get furthest breed, and forty generations later
-something that nobody designed is climbing the whole thing.
+a hill course under real 2D physics, the ones that get furthest breed, and after a few dozen
+generations something that nobody designed is climbing the whole thing.
 
 ![Darwin's Garage: an evolved car airborne over the rubble field, with the fitness curve climbing in the HUD](docs/screenshot.png)
 
@@ -19,15 +19,18 @@ to see selection pressure do something visible, this is 40 generations of it on 
 
 ## What it does
 
-Every car starts as a random skeleton: a polygon chassis of five to eight vertices, wheels bolted
-to random corners at random radii, each with its own torque. Generation 0 is a pile of junk that
-flops, flips, and goes nowhere on the rubble field.
+Every car starts as a random skeleton: a five-vertex polygon chassis, with round wheels bolted to
+random corners at random radii and each wheel given its own torque. Mutation can add or remove
+chassis and wheel-outline vertices, then move them to reshape both polygons. Generation 0 is a pile
+of junk that flops, flips, and goes nowhere on the rubble field.
 
 From there a real genetic algorithm takes over. Tournament selection picks parents, crossover
 splices two parent chassis into a child, and mutation nudges wheel position, radius, torque, and
-chassis geometry. Each candidate runs the same course inside a Matter.js simulation, and the
-distance it covers before it flips, stalls, or runs out of time is its fitness. On the shipped
-course the best car covers 58m in generation 0 and the full 720m by generation 20.
+chassis geometry. Set any course length from 100 to 30,000 metres, then independently adjust
+roughness, steepness, and obstacle frequency. The run seed drives both the starting population and
+terrain generation, so replaying the same seed and settings recreates the same experiment. Longer
+routes get deterministic rolling hills and rubble, and their simulation time budget scales with
+the finish distance.
 
 ## Why it was worth building
 
@@ -40,11 +43,14 @@ rubble field that filters out the shapes that only topple forward, then a climb.
 
 ## Features
 
-- **Evolution engine** with tournament selection, crossover, and mutation over a chassis and wheel
-  genome, tuned so the fitness curve climbs steadily instead of solving the course by generation 4.
-- **Generation scrubber.** The page evolves all 40 generations on load and opens the slider as each
-  one lands. Scrub to any generation to replay its best car, or tap any car on the floor to watch
-  that one instead.
+- **Evolution engine** with tournament selection, crossover, and mutation over chassis geometry,
+  wheel shape, radius, and torque, tuned so the fitness curve climbs steadily instead of solving
+  the course by generation 4. Cars start with round 24-point wheel outlines that can deform and
+  gain or lose points through evolution, just like the chassis outline.
+- **Generation scrubber.** The page evolves 40 generations by default and opens the slider as each
+  one lands. Choose any positive generation count and seed, plus the course length, roughness,
+  steepness, and obstacle frequency. Scrub to any generation to replay its best car, or tap any
+  car on the floor to watch that one instead.
 - **Hall of fame.** The best run so far is pinned to the HUD with its own share button and updates
   the moment a new best-ever fitness appears.
 - **Shareable replay links.** Any car packs into a URL carrying its full genome, checksummed so a
@@ -81,9 +87,9 @@ npm run build    # -> site/, static and relative-pathed for subpath hosting
 npm run preview  # serve the built site/
 ```
 
-Runs are seeded, so the demo is reproducible: the same seed always produces the same 40
-generations. `test/acceptance.test.js` runs the real demo and guards that promise, which is why it
-is slow on purpose.
+Runs are seeded, so the demo is reproducible: the same seed and generation count produce the same
+history. `test/acceptance.test.js` runs the real demo and guards that promise, which is why it is
+slow on purpose.
 
 ## How the code is laid out
 

@@ -9,13 +9,24 @@ import {
   heightAt,
   trackSegments,
   DEFAULT_TRACK_ID,
+  DEFAULT_COURSE_LENGTH,
+  DEFAULT_TERRAIN_SETTING,
+  courseSettingsFromTrackId,
   TRACK_LIMITS,
 } from '../src/track.js';
 
 test('the default track is valid and identifiable', () => {
   const track = createDefaultTrack();
   assert.deepEqual(validateTrack(track), []);
-  assert.equal(track.id, DEFAULT_TRACK_ID);
+  assert.equal(track.length, DEFAULT_COURSE_LENGTH);
+  assert.equal(track.seed, 1);
+  assert.deepEqual(courseSettingsFromTrackId(track.id), {
+    length: DEFAULT_COURSE_LENGTH,
+    roughness: DEFAULT_TERRAIN_SETTING,
+    steepness: DEFAULT_TERRAIN_SETTING,
+    obstacleFrequency: DEFAULT_TERRAIN_SETTING,
+    seed: 1,
+  });
   assert.equal(track.builtIn, true);
 });
 
@@ -34,6 +45,79 @@ test('createDefaultTrack returns a fresh object each call', () => {
   assert.deepEqual(a, b);
   a.points[0].x = 12345;
   assert.notEqual(a.points[0].x, b.points[0].x);
+});
+
+test('course length settings produce valid, longer deterministic courses', () => {
+  for (const length of [100, 720, 1200, 2400, 30000]) {
+    const track = createDefaultTrack({ length });
+    assert.deepEqual(validateTrack(track), []);
+    assert.equal(finishX(track), length * 10);
+    assert.ok(track.points.length <= TRACK_LIMITS.maxPoints);
+    assert.deepEqual(track, createDefaultTrack({ length }));
+  }
+  assert.ok(finishX(createDefaultTrack({ length: 2400 })) > finishX(createDefaultTrack()));
+});
+
+test('terrain controls change generated geometry while preserving its length', () => {
+  const tracks = [
+    createDefaultTrack({ length: 1200 }),
+    createDefaultTrack({ length: 1200, roughness: 10 }),
+    createDefaultTrack({ length: 1200, steepness: 90 }),
+    createDefaultTrack({ length: 1200, obstacleFrequency: 90 }),
+  ];
+  assert.ok(tracks.every((track) => finishX(track) === 12000));
+  assert.equal(new Set(tracks.map((track) => JSON.stringify(track.points))).size, 4);
+  assert.ok(tracks.every((track) => isValidTrack(track)));
+});
+
+test('course identifiers round-trip continuous settings and legacy links', () => {
+  assert.deepEqual(courseSettingsFromTrackId(DEFAULT_TRACK_ID), {
+    length: 720,
+    roughness: 50,
+    steepness: 50,
+    obstacleFrequency: 50,
+    seed: 1,
+  });
+  assert.deepEqual(courseSettingsFromTrackId('hill-2400-hard'), {
+    length: 2400,
+    roughness: 77,
+    steepness: 77,
+    obstacleFrequency: 50,
+    seed: 1,
+  });
+  for (const length of [100, 1200, 30000]) {
+    for (const setting of [0, 50, 100]) {
+      const options = {
+        length,
+        roughness: setting,
+        steepness: 100 - setting,
+        obstacleFrequency: setting,
+        seed: setting * 1234,
+      };
+      const track = createDefaultTrack(options);
+      assert.deepEqual(courseSettingsFromTrackId(track.id), options);
+    }
+  }
+  assert.equal(courseSettingsFromTrackId('other-course'), null);
+});
+
+test('createDefaultTrack rejects unsupported course settings', () => {
+  for (const length of [99, 30001, 100.5]) {
+    assert.throws(() => createDefaultTrack({ length }), RangeError);
+  }
+  for (const setting of [-1, 101, 50.5]) {
+    assert.throws(() => createDefaultTrack({ roughness: setting }), RangeError);
+  }
+  for (const seed of [-1, 0x100000000, 1.5]) {
+    assert.throws(() => createDefaultTrack({ seed }), RangeError);
+  }
+});
+
+test('the same seed reproduces the same terrain and a different seed changes it', () => {
+  const options = { length: 2400, roughness: 72, steepness: 31, obstacleFrequency: 88 };
+  const track = createDefaultTrack({ ...options, seed: 123 });
+  assert.deepEqual(track, createDefaultTrack({ ...options, seed: 123 }));
+  assert.notDeepEqual(track.points, createDefaultTrack({ ...options, seed: 124 }).points);
 });
 
 test('validateTrack rejects a track with too few points', () => {

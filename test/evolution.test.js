@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRng } from '../src/rng.js';
-import { createRandomGenome, isValidGenome } from '../src/genome.js';
+import { createRandomGenome, isValidGenome, normalizeGenome } from '../src/genome.js';
 import {
   createPopulation,
   selectParent,
@@ -109,6 +109,40 @@ test('crossover of a genome with itself reproduces that genome', () => {
   assert.deepEqual(child, parent);
 });
 
+test('crossover inherits wheel shapes and can combine shapes from both parents', () => {
+  const a = createRandomGenome(createRng(21));
+  const b = createRandomGenome(createRng(22));
+  a.wheels.forEach((wheel) => {
+    wheel.shape = wheel.shape.map((point) => ({ x: point.x * 0.45, y: point.y }));
+    wheel.radius = 12;
+  });
+  b.wheels.forEach((wheel) => {
+    wheel.shape = wheel.shape.map((point) => ({ x: point.x, y: point.y * 0.45 }));
+    wheel.radius = 33;
+  });
+  const parentA = normalizeGenome(a);
+  const parentB = normalizeGenome(b);
+
+  const offspring = Array.from({ length: 100 }, (_, seed) =>
+    crossover(parentA, parentB, createRng(seed)),
+  );
+  for (const child of offspring) {
+    assert.ok(child.wheels.every((wheel) => [12, 33].includes(wheel.radius)));
+    child.wheels.forEach((wheel, index) => {
+      const sourceA = parentA.wheels[index % parentA.wheels.length].shape;
+      const sourceB = parentB.wheels[index % parentB.wheels.length].shape;
+      assert.equal(wheel.shape.length, sourceA.length);
+      for (let pointIndex = 0; pointIndex < wheel.shape.length; pointIndex += 1) {
+        assert.ok(
+          JSON.stringify(wheel.shape[pointIndex]) === JSON.stringify(sourceA[pointIndex]) ||
+            JSON.stringify(wheel.shape[pointIndex]) === JSON.stringify(sourceB[pointIndex]),
+          'each wheel point should come from one of its parents',
+        );
+      }
+    });
+  }
+});
+
 test('crossover does not alias its parents', () => {
   const a = createRandomGenome(createRng(1));
   const b = createRandomGenome(createRng(2));
@@ -131,6 +165,34 @@ test('mutate at rate 1 changes the genome', () => {
   const genome = createRandomGenome(createRng(31));
   const result = mutate(genome, createRng(2), { mutationRate: 1 });
   assert.notDeepEqual(result, genome);
+});
+
+test('mutation can add and remove chassis vertices', () => {
+  const genome = createRandomGenome(createRng(31));
+  const counts = new Set();
+  for (let seed = 0; seed < 100; seed += 1) {
+    counts.add(
+      mutate(genome, createRng(seed), {
+        mutationRate: 1,
+        vertexCountMutationChance: 1,
+      }).chassis.length,
+    );
+  }
+  assert.ok(counts.has(4), 'mutation should be able to remove a chassis vertex');
+  assert.ok(counts.has(6), 'mutation should be able to add a chassis vertex');
+});
+
+test('mutation can change a wheel profile', () => {
+  const genome = createRandomGenome(createRng(31));
+  const mutated = mutate(genome, createRng(2), {
+    mutationRate: 1,
+    wheelShapeMutationChance: 1,
+  });
+  assert.ok(
+    mutated.wheels.some(
+      (wheel, index) => JSON.stringify(wheel.shape) !== JSON.stringify(genome.wheels[index].shape),
+    ),
+  );
 });
 
 test('mutate keeps every gene inside its limits even at maximum jitter', () => {

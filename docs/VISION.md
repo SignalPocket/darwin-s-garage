@@ -7,8 +7,8 @@ line graph. That's correct but it's boring, and it hides the actual thing that m
 compelling — that *dumb, undirected, random variation plus selection pressure produces
 competent design*. The best way to make that legible is to evolve something you can watch move:
 a car. Several "evolving cars" demos exist already; nearly all of them show you one run, once,
-with no way to go back, no way to point evolution at a track you choose, and no way to share the
-one weird car you liked. Darwin's Garage is built to fix exactly those three gaps.
+with no way to go back, reshape the course, or share the one weird car you liked. Darwin's Garage
+is built to fix exactly those three gaps.
 
 ## Who it's for
 
@@ -19,20 +19,23 @@ who *does* know GAs can see real selection/crossover/mutation happening, not a c
 
 ## The core idea
 
-1. A **genome** is plain data: a polygon chassis (5-8 vertices) plus 2-4 wheels, each wheel
-   attached at a chassis vertex with its own radius. See `src/genome.js`.
+1. A **genome** is plain data: a polygon chassis (4-8 vertices) plus 2-4 wheels, each wheel
+   attached at a chassis vertex with its own radius, torque, and polygon outline. New cars start
+   with five chassis vertices and round, 24-point wheel outlines; mutation can add, remove, and
+   move vertices in either outline. See `src/genome.js`.
 2. A **population** of genomes (generation 0: pure random) is built into Matter.js bodies and
-   dropped on a test track. Each car runs the physics sim for a fixed time budget.
+   dropped on a seeded, adjustable track. Each car runs the physics sim for a budget scaled to the
+   course length.
 3. **Fitness** is horizontal distance traveled toward the finish, with a small penalty for
    chassis pieces that break/detach and a bonus for not flipping. Getting this function right —
    so a barely-functional wobble scores meaningfully better than a car that doesn't move, without
    accidentally rewarding degenerate strategies (e.g. a car that just topples forward once) — is
    the central tuning problem of this project.
-4. The next generation is bred from the current one: fitness-proportionate **selection** of
+4. The next generation is bred from the current one: tournament **selection** of
    parents, **crossover** that splices one parent's chassis/wheel genes with the other's,
-   **mutation** that nudges vertex positions, wheel radii, and wheel attachment points. Every
-   generation is stored (not just the current one), so a generation slider can jump anywhere in
-   history and replay it exactly.
+   **mutation** that nudges chassis and wheel-outline points and wheel parameters, and adds or
+   removes vertices from either outline. Every generation is stored (not just the current one), so
+   a generation slider can jump anywhere in history and replay it exactly.
 5. **Replay is the shareable unit.** A genome plus its generation number plus the track it ran on
    fully determines a run — physics is deterministic given a fixed timestep — so that triple
    encodes to a URL and reconstructs the exact same run for anyone who opens the link.
@@ -40,16 +43,18 @@ who *does* know GAs can see real selection/crossover/mutation happening, not a c
 ## Key design decisions
 
 - **Determinism over realism.** The physics and RNG must be seedable and reproducible, because
-  shareable replay links only work if the same genome+track always plays out the same way.
-  Matter.js's fixed-timestep stepping (rather than wall-clock-driven) makes this possible.
+  shareable replay links only work if the same genome+track always plays out the same way. The run
+  seed drives both population and terrain generation. Matter.js's fixed-timestep stepping (rather
+  than wall-clock-driven) makes this possible.
 - **Data-first genome.** The genome is plain JSON-serializable data, not classes tied to
   Matter.js bodies. That's what makes crossover/mutation simple (they're just object
   transforms) and what makes replay links possible (the genome *is* the shareable state).
 - **No server.** Everything — evolution, physics, rendering, the track editor, replay decoding —
   runs client-side. Sharing a car means sharing a URL with the genome encoded in it, not a
   database row. This is also why the whole thing has to build to one static directory.
-- **Track is data too.** A track is a list of terrain segments/heights, same spirit as the
-  genome: editable, serializable, and swappable independent of the evolution engine.
+- **Track is data too.** A track is a list of terrain segments/heights generated from the seed,
+  length, roughness, steepness, and obstacle-frequency controls, same spirit as the genome:
+  serializable and independent of the evolution engine.
 - **Mobile-first.** Every control (generation slider, playback speed, track editor) is built
   touch-first; mouse/keyboard is the fallback, not the primary target.
 

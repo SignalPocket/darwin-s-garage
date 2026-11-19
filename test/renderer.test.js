@@ -128,7 +128,23 @@ test('painting a real run never hands the canvas a non-finite coordinate', () =>
   }
 
   assert.ok(result.frames.length > 0, 'the run recorded no frames to paint');
-  assert.ok(canvas.ctx.calls.includes('arc'), 'no wheel was ever drawn');
+  assert.ok(canvas.ctx.calls.includes('closePath'), 'no polygonal wheel was ever drawn');
+});
+
+test('polygonal wheel profiles draw as closed polygons', () => {
+  const canvas = createFakeCanvas();
+  const renderer = createRenderer(canvas);
+  withWindow(1, () => renderer.resize());
+
+  const genome = createRandomGenome(createRng(12));
+  genome.wheels[0].shape = genome.wheels[0].shape.slice(0, 5);
+  const pose = {
+    chassis: { x: 0, y: 0, angle: 0 },
+    wheels: genome.wheels.map(() => ({ x: 0, y: 0, angle: 0 })),
+  };
+  renderer.drawCar(genome, pose);
+
+  assert.ok(canvas.ctx.calls.includes('closePath'), 'polygon wheels should close their outline');
 });
 
 test('the camera snaps on the first move and eases afterwards', () => {

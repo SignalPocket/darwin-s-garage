@@ -16,7 +16,8 @@ hard, and what actually was.
 ## The genetic algorithm is the easy part
 
 Selection, crossover, and mutation are about 170 lines between them. A genome is a polygon chassis
-of five to eight vertices plus wheels bolted to random vertices with a radius and a torque:
+that starts with five vertices, plus round wheels bolted to random vertices with a radius and a
+torque. Evolution can add or remove chassis vertices and mutate wheels into polygons:
 
 ```js
 {

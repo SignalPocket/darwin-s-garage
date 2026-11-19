@@ -6,11 +6,16 @@
 // window does not get clicked. Coordinates are rounded to whole pixels (well
 // under what is visible) and packed positionally rather than as JSON keys.
 
-import { normalizeGenome, isValidGenome } from './genome.js';
+import {
+  normalizeGenome,
+  isValidGenome,
+  LEGACY_WHEEL_SHAPES,
+  regularWheelShape,
+} from './genome.js';
 import { DEFAULT_TRACK_ID } from './track.js';
 
 export const SHARE_PARAM = 'car';
-const FORMAT_VERSION = 1;
+const FORMAT_VERSION = 3;
 
 // Every way a link can arrive damaged looks identical to the person holding it,
 // so they all get the one message that names the likely cause.
@@ -33,7 +38,12 @@ export function encodeShare({ genome, generation = 0, trackId = DEFAULT_TRACK_ID
     safe.chassis.map((p) => `${Math.round(p.x)},${Math.round(p.y)}`).join(';'),
     // Torque keeps three decimals: its whole gene range is 0-0.12, so rounding
     // any harder would quantize the drive away.
-    safe.wheels.map((w) => `${w.vertexIndex},${Math.round(w.radius)},${w.torque.toFixed(3)}`).join(';'),
+    safe.wheels
+      .map(
+        (w) =>
+          `${w.vertexIndex},${Math.round(w.radius)},${w.torque.toFixed(3)},${encodeWheelShape(w.shape)}`,
+      )
+      .join(';'),
   ].join('|');
   return toBase64Url(`${body}|${checksum(body)}`);
 }
@@ -68,7 +78,8 @@ export function decodeShare(encoded) {
   }
   const [rawVersion, rawGeneration, trackId, rawChassis, rawWheels] = parts;
 
-  if (Number(rawVersion) !== FORMAT_VERSION) {
+  const version = Number(rawVersion);
+  if (version !== 1 && version !== 2 && version !== FORMAT_VERSION) {
     return fail(`This link uses share format ${rawVersion}, which this version can't open.`);
   }
   const generation = Number(rawGeneration);
@@ -81,15 +92,29 @@ export function decodeShare(encoded) {
     const [x, y] = pair.split(',').map(Number);
     return { x, y };
   });
-  const wheels = rawWheels.split(';').map((triple) => {
-    const [vertexIndex, radius, torque] = triple.split(',').map(Number);
-    return { vertexIndex, radius, torque };
+  const wheels = rawWheels.split(';').map((packedWheel) => {
+    const [rawVertexIndex, rawRadius, rawTorque, rawShape] = packedWheel.split(',');
+    return {
+      vertexIndex: Number(rawVertexIndex),
+      radius: Number(rawRadius),
+      torque: Number(rawTorque),
+      shape: decodeLegacyWheelShape(version, rawShape),
+    };
   });
 
   if (!isValidGenome({ chassis, wheels })) {
     return fail("This share link describes a car that couldn't be built.");
   }
   return { ok: true, value: { genome: normalizeGenome({ chassis, wheels }), generation, trackId } };
+}
+
+function decodeLegacyWheelShape(version, rawShape) {
+  if (version === 1) return 'circle';
+  if (version === 2) {
+    const shape = LEGACY_WHEEL_SHAPES[Number(rawShape)];
+    return shape === 'circle' ? regularWheelShape(8) : shape ?? 'invalid';
+  }
+  return decodeWheelShape(rawShape);
 }
 
 /** Build a full shareable URL against the page's own location. */
@@ -132,6 +157,28 @@ function checksum(body) {
     hash = Math.imul(hash, 0x01000193) >>> 0;
   }
   return hash.toString(36);
+}
+
+function encodeWheelShape(points) {
+  return points
+    .map((point) => {
+      const x = Math.round((point.x + 1) * 1000).toString(36).padStart(3, '0');
+      const y = Math.round((point.y + 1) * 1000).toString(36).padStart(3, '0');
+      return `${x}${y}`;
+    })
+    .join('');
+}
+
+function decodeWheelShape(encoded) {
+  if (typeof encoded !== 'string' || encoded.length % 6 !== 0) return null;
+  const points = [];
+  for (let i = 0; i < encoded.length; i += 6) {
+    const x = Number.parseInt(encoded.slice(i, i + 3), 36);
+    const y = Number.parseInt(encoded.slice(i + 3, i + 6), 36);
+    if (!Number.isInteger(x) || !Number.isInteger(y) || x > 2000 || y > 2000) return null;
+    points.push({ x: x / 1000 - 1, y: y / 1000 - 1 });
+  }
+  return points;
 }
 
 // btoa/atob only exist in the browser and only speak latin1; Buffer only exists

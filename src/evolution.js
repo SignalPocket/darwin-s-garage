@@ -2,7 +2,13 @@
 // physics, no Matter, no canvas. Every random choice comes from an injected
 // seeded rng so a whole evolution run reproduces from its seed.
 
-import { createRandomGenome, normalizeGenome, cloneGenome, GENOME_LIMITS, clamp } from './genome.js';
+import {
+  createRandomGenome,
+  normalizeGenome,
+  cloneGenome,
+  GENOME_LIMITS,
+  clamp,
+} from './genome.js';
 import { randomInt, randomFloat } from './rng.js';
 
 export const EVOLUTION_DEFAULTS = Object.freeze({
@@ -22,6 +28,9 @@ export const EVOLUTION_DEFAULTS = Object.freeze({
   // Chance a mutation rewires a wheel to a different chassis vertex rather than
   // nudging a number — the structural move that finds four-wheel layouts.
   rewireChance: 0.25,
+  vertexCountMutationChance: 0.2,
+  wheelShapeMutationChance: 0.25,
+  wheelShapeJitter: 0.2,
   tournamentSize: 3,
 });
 
@@ -50,23 +59,37 @@ export function selectParent(population, fitnesses, rng, k = EVOLUTION_DEFAULTS.
 }
 
 /**
- * Splice two parents. The child takes one parent's chassis wholesale and the
- * other's wheels, then has its wheel indices clamped into the inherited
- * chassis — so a child's vertex count is always exactly one parent's, never an
- * invented in-between count that could be structurally invalid.
+ * Splice two parents. The child inherits one chassis and wheel count, while
+ * wheel parameters and outline points can come from either parent.
  */
 export function crossover(parentA, parentB, rng) {
   const a = normalizeGenome(parentA);
   const b = normalizeGenome(parentB);
   const chassisDonor = rng() < 0.5 ? a : b;
-  const wheelDonor = rng() < 0.5 ? a : b;
+  const wheelCountDonor = rng() < 0.5 ? a : b;
 
   return normalizeGenome({
     chassis: chassisDonor.chassis.map((p) => ({ x: p.x, y: p.y })),
-    wheels: wheelDonor.wheels.map((w) => ({
-      ...w,
-      vertexIndex: clamp(w.vertexIndex, 0, chassisDonor.chassis.length - 1),
-    })),
+    wheels: wheelCountDonor.wheels
+      .map((_, index) => {
+      const wheelA = a.wheels[index % a.wheels.length];
+      const wheelB = b.wheels[index % b.wheels.length];
+      const shapeDonor = rng() < 0.5 ? wheelA : wheelB;
+      return {
+        vertexIndex: rng() < 0.5 ? wheelA.vertexIndex : wheelB.vertexIndex,
+        radius: rng() < 0.5 ? wheelA.radius : wheelB.radius,
+        torque: rng() < 0.5 ? wheelA.torque : wheelB.torque,
+        shape: shapeDonor.shape.map((_, pointIndex) => {
+          const pointA = wheelA.shape[pointIndex % wheelA.shape.length];
+          const pointB = wheelB.shape[pointIndex % wheelB.shape.length];
+          return rng() < 0.5 ? { ...pointA } : { ...pointB };
+        }),
+      };
+      })
+      .map((wheel) => ({
+        ...wheel,
+        vertexIndex: clamp(wheel.vertexIndex, 0, chassisDonor.chassis.length - 1),
+      })),
   });
 }
 
@@ -80,11 +103,39 @@ export function mutate(genome, rng, options = {}) {
   if (!(rate >= 0 && rate <= 1)) {
     throw new RangeError(`mutate: mutationRate must be within [0, 1], got ${rate}`);
   }
+  for (const [name, chance] of [
+    ['vertexCountMutationChance', config.vertexCountMutationChance],
+    ['wheelShapeMutationChance', config.wheelShapeMutationChance],
+  ]) {
+    if (!(chance >= 0 && chance <= 1)) {
+      throw new RangeError(`mutate: ${name} must be within [0, 1], got ${chance}`);
+    }
+  }
   const next = cloneGenome(normalizeGenome(genome));
 
   for (const point of next.chassis) {
     if (rng() < rate) point.x += randomFloat(rng, -config.vertexJitter, config.vertexJitter);
     if (rng() < rate) point.y += randomFloat(rng, -config.vertexJitter, config.vertexJitter);
+  }
+  if (rng() < rate * config.vertexCountMutationChance) {
+    const addVertex =
+      next.chassis.length === GENOME_LIMITS.minVertices ||
+      (next.chassis.length < GENOME_LIMITS.maxVertices && rng() < 0.5);
+    if (addVertex) {
+      const angle = randomFloat(rng, 0, Math.PI * 2);
+      const radius = randomFloat(rng, GENOME_LIMITS.minVertexRadius, GENOME_LIMITS.chassisRadius);
+      next.chassis.push({ x: Math.cos(angle) * radius, y: Math.sin(angle) * radius });
+    } else {
+      const removedIndex = randomInt(rng, 0, next.chassis.length - 1);
+      next.chassis.splice(removedIndex, 1);
+      for (const wheel of next.wheels) {
+        if (wheel.vertexIndex === removedIndex) {
+          wheel.vertexIndex = randomInt(rng, 0, next.chassis.length - 1);
+        } else if (wheel.vertexIndex > removedIndex) {
+          wheel.vertexIndex -= 1;
+        }
+      }
+    }
   }
   for (const wheel of next.wheels) {
     if (rng() < rate) {
@@ -100,6 +151,27 @@ export function mutate(genome, rng, options = {}) {
         GENOME_LIMITS.minTorque,
         GENOME_LIMITS.maxTorque,
       );
+    }
+    for (const point of wheel.shape) {
+      if (rng() < rate * config.wheelShapeMutationChance) {
+        point.x += randomFloat(rng, -config.wheelShapeJitter, config.wheelShapeJitter);
+        point.y += randomFloat(rng, -config.wheelShapeJitter, config.wheelShapeJitter);
+      }
+    }
+    if (rng() < rate * config.wheelShapeMutationChance * config.vertexCountMutationChance) {
+      const addPoint =
+        wheel.shape.length === GENOME_LIMITS.minWheelVertices ||
+        (wheel.shape.length < GENOME_LIMITS.maxWheelVertices && rng() < 0.5);
+      if (addPoint) {
+        const angle = randomFloat(rng, 0, Math.PI * 2);
+        const radius = randomFloat(rng, 0.5, 1);
+        wheel.shape.push({
+          x: Math.cos(angle) * radius,
+          y: Math.sin(angle) * radius,
+        });
+      } else {
+        wheel.shape.splice(randomInt(rng, 0, wheel.shape.length - 1), 1);
+      }
     }
     if (rng() < rate * config.rewireChance) {
       wheel.vertexIndex = randomInt(rng, 0, next.chassis.length - 1);
