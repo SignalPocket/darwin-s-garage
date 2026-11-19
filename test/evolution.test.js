@@ -109,38 +109,50 @@ test('crossover of a genome with itself reproduces that genome', () => {
   assert.deepEqual(child, parent);
 });
 
-test('crossover inherits wheel shapes and can combine shapes from both parents', () => {
-  const a = createRandomGenome(createRng(21));
-  const b = createRandomGenome(createRng(22));
-  a.wheels.forEach((wheel) => {
-    wheel.shape = wheel.shape.map((point) => ({ x: point.x * 0.45, y: point.y }));
-    wheel.radius = 12;
+test('crossover swaps contiguous segments along the linear chromosome', () => {
+  const parentA = normalizeGenome({
+    chassis: [
+      { x: 60, y: 0 },
+      { x: 20, y: 57 },
+      { x: -48, y: 35 },
+      { x: -48, y: -35 },
+      { x: 20, y: -57 },
+    ],
+    wheels: [
+      { vertexIndex: 0, radius: 12, torque: 0.02, shape: 'circle' },
+      { vertexIndex: 2, radius: 12, torque: 0.02, shape: 'circle' },
+    ],
   });
-  b.wheels.forEach((wheel) => {
-    wheel.shape = wheel.shape.map((point) => ({ x: point.x, y: point.y * 0.45 }));
-    wheel.radius = 33;
+  const parentB = normalizeGenome({
+    chassis: parentA.chassis.map((point) => ({ x: -point.x, y: point.y })),
+    wheels: parentA.wheels.map((wheel) => ({
+      ...wheel,
+      radius: 33,
+      torque: 0.1,
+    })),
   });
-  const parentA = normalizeGenome(a);
-  const parentB = normalizeGenome(b);
+  const sequence = [0.1, 0.1, 0, 0.1];
+  const rng = () => sequence.shift() ?? 0.99;
+  const child = crossover(parentA, parentB, rng);
 
-  const offspring = Array.from({ length: 100 }, (_, seed) =>
-    crossover(parentA, parentB, createRng(seed)),
+  const inheritedFrom = child.chassis.map((point, index) => {
+    if (JSON.stringify(point) === JSON.stringify(parentA.chassis[index])) return 'A';
+    if (JSON.stringify(point) === JSON.stringify(parentB.chassis[index])) return 'B';
+    return '?';
+  });
+  inheritedFrom.push(...child.wheels.map((wheel) => (wheel.radius === 12 ? 'A' : 'B')));
+
+  assert.deepEqual(inheritedFrom, ['A', 'B', 'B', 'B', 'B', 'B', 'B']);
+  assert.ok(isValidGenome(child));
+});
+
+test('crossover is deterministic for the same parents and random seed', () => {
+  const parentA = createRandomGenome(createRng(21));
+  const parentB = createRandomGenome(createRng(22));
+  assert.deepEqual(
+    crossover(parentA, parentB, createRng(23)),
+    crossover(parentA, parentB, createRng(23)),
   );
-  for (const child of offspring) {
-    assert.ok(child.wheels.every((wheel) => [12, 33].includes(wheel.radius)));
-    child.wheels.forEach((wheel, index) => {
-      const sourceA = parentA.wheels[index % parentA.wheels.length].shape;
-      const sourceB = parentB.wheels[index % parentB.wheels.length].shape;
-      assert.equal(wheel.shape.length, sourceA.length);
-      for (let pointIndex = 0; pointIndex < wheel.shape.length; pointIndex += 1) {
-        assert.ok(
-          JSON.stringify(wheel.shape[pointIndex]) === JSON.stringify(sourceA[pointIndex]) ||
-            JSON.stringify(wheel.shape[pointIndex]) === JSON.stringify(sourceB[pointIndex]),
-          'each wheel point should come from one of its parents',
-        );
-      }
-    });
-  }
 });
 
 test('crossover does not alias its parents', () => {

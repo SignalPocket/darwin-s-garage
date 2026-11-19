@@ -25,8 +25,8 @@ chassis and wheel-outline vertices, then move them to reshape both polygons. Gen
 of junk that flops, flips, and goes nowhere on the rubble field.
 
 From there a real genetic algorithm takes over. Tournament selection picks parents, crossover
-splices two parent chassis into a child, and mutation nudges wheel position, radius, torque, and
-chassis geometry. Set any course length from 100 to 30,000 metres, then independently adjust
+swaps contiguous segments in a linear sequence of chassis-vertex and wheel genes, and mutation
+nudges wheel position, radius, torque, and chassis geometry. Set any course length from 100 to 30,000 metres, then independently adjust
 roughness, steepness, and obstacle frequency. The run seed drives both the starting population and
 terrain generation, so replaying the same seed and settings recreates the same experiment. Longer
 routes get deterministic rolling hills and rubble, and their simulation time budget scales with

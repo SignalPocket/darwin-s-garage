@@ -6,6 +6,7 @@ import {
   createRandomGenome,
   normalizeGenome,
   cloneGenome,
+  isValidGenome,
   GENOME_LIMITS,
   clamp,
 } from './genome.js';
@@ -59,38 +60,51 @@ export function selectParent(population, fitnesses, rng, k = EVOLUTION_DEFAULTS.
 }
 
 /**
- * Splice two parents. The child inherits one chassis and wheel count, while
- * wheel parameters and outline points can come from either parent.
+ * Recombine ordered chassis-vertex and wheel genes using alternating segments.
+ * The first parent supplies the child's structure; one to three crossover
+ * points switch which parent's corresponding genes are copied into each segment.
  */
 export function crossover(parentA, parentB, rng) {
   const a = normalizeGenome(parentA);
   const b = normalizeGenome(parentB);
-  const chassisDonor = rng() < 0.5 ? a : b;
-  const wheelCountDonor = rng() < 0.5 ? a : b;
+  const base = rng() < 0.5 ? a : b;
+  const other = base === a ? b : a;
+  const chromosome = [
+    ...base.chassis.map((_, index) => ({ kind: 'chassis', index })),
+    ...base.wheels.map((_, index) => ({ kind: 'wheel', index })),
+  ];
+  const maxCrossovers = Math.min(3, chromosome.length - 1);
+  const crossoverCount = randomInt(rng, 1, maxCrossovers);
+  const crossoverPoints = new Set();
+  while (crossoverPoints.size < crossoverCount) {
+    crossoverPoints.add(randomInt(rng, 1, chromosome.length - 1));
+  }
 
-  return normalizeGenome({
-    chassis: chassisDonor.chassis.map((p) => ({ x: p.x, y: p.y })),
-    wheels: wheelCountDonor.wheels
-      .map((_, index) => {
-      const wheelA = a.wheels[index % a.wheels.length];
-      const wheelB = b.wheels[index % b.wheels.length];
-      const shapeDonor = rng() < 0.5 ? wheelA : wheelB;
-      return {
-        vertexIndex: rng() < 0.5 ? wheelA.vertexIndex : wheelB.vertexIndex,
-        radius: rng() < 0.5 ? wheelA.radius : wheelB.radius,
-        torque: rng() < 0.5 ? wheelA.torque : wheelB.torque,
-        shape: shapeDonor.shape.map((_, pointIndex) => {
-          const pointA = wheelA.shape[pointIndex % wheelA.shape.length];
-          const pointB = wheelB.shape[pointIndex % wheelB.shape.length];
-          return rng() < 0.5 ? { ...pointA } : { ...pointB };
-        }),
-      };
-      })
-      .map((wheel) => ({
-        ...wheel,
-        vertexIndex: clamp(wheel.vertexIndex, 0, chassisDonor.chassis.length - 1),
-      })),
-  });
+  const child = { chassis: [], wheels: [] };
+  let useBase = rng() < 0.5;
+  for (const [locus, gene] of chromosome.entries()) {
+    if (crossoverPoints.has(locus)) useBase = !useBase;
+    const source = useBase ? base : other;
+    const fallback = useBase ? other : base;
+    const sourceGenes = source[gene.kind === 'chassis' ? 'chassis' : 'wheels'];
+    const fallbackGenes = fallback[gene.kind === 'chassis' ? 'chassis' : 'wheels'];
+    const value = sourceGenes[gene.index] ?? fallbackGenes[gene.index];
+    if (gene.kind === 'chassis') {
+      child.chassis.push({ x: value.x, y: value.y });
+    } else {
+      child.wheels.push({
+        ...value,
+        shape: value.shape.map((point) => ({ x: point.x, y: point.y })),
+      });
+    }
+  }
+
+  // Mixing vertex genes can rarely make a degenerate chassis. Preserve the
+  // chosen parent's valid chassis in that case; wheel genes remain recombined.
+  if (!isValidGenome(child)) {
+    child.chassis = base.chassis.map((point) => ({ x: point.x, y: point.y }));
+  }
+  return normalizeGenome(child);
 }
 
 /**

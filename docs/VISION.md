@@ -32,7 +32,7 @@ who *does* know GAs can see real selection/crossover/mutation happening, not a c
    accidentally rewarding degenerate strategies (e.g. a car that just topples forward once) — is
    the central tuning problem of this project.
 4. The next generation is bred from the current one: tournament **selection** of
-   parents, **crossover** that splices one parent's chassis/wheel genes with the other's,
+   parents, **crossover** that alternates contiguous segments of chassis-vertex and wheel genes,
    **mutation** that nudges chassis and wheel-outline points and wheel parameters, and adds or
    removes vertices from either outline. Every generation is stored (not just the current one), so
    a generation slider can jump anywhere in history and replay it exactly.
