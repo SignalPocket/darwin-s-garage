@@ -43,11 +43,11 @@ Two of these carry a contrast rule worth stating, because both were broken once:
   rust uses `--accent-ink`, which is the same hue at 70%: 4.74:1 and 5.69:1.
 
 **Type**
-- Display: **"Bungee"** (Google Fonts) — stenciled, industrial-poster weight, for the wordmark,
-  page headings, and the generation counter. Fallback: `"Arial Black", sans-serif`.
-- UI: **"IBM Plex Sans"** (Google Fonts) — clean and mechanical enough to feel workshop-native
-  without competing with Bungee. Fallback: `system-ui, sans-serif`. Monospace variant
-  (`"IBM Plex Mono"`) for numeric readouts (fitness score, generation index, wheel radius).
+- Display and UI: **"Atkinson Hyperlegible"** (Google Fonts) for readable headings, labels, and
+  body copy. Fallback: `system-ui, sans-serif`.
+- Wordmark: **"Bungee"** (Google Fonts) retains the stenciled workshop identity. Fallback:
+  `"Arial Black", sans-serif`. **"IBM Plex Mono"** remains for numeric readouts (fitness score,
+  generation index, wheel radius).
 
 **Spacing / shape**
 - 8px base spacing unit (8/16/24/32/48).

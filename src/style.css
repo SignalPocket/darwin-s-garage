@@ -22,8 +22,9 @@
   --success: #4f7942;
   --danger: #b3261e;
 
-  --font-display: 'Bungee', 'Arial Black', sans-serif;
-  --font-ui: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-display: 'Atkinson Hyperlegible', system-ui, sans-serif;
+  --font-ui: 'Atkinson Hyperlegible', system-ui, sans-serif;
+  --font-wordmark: 'Bungee', 'Arial Black', sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
 
   --space-1: 8px;
@@ -112,7 +113,7 @@ body {
 
 .wordmark {
   margin: 0;
-  font-family: var(--font-display);
+  font-family: var(--font-wordmark);
   font-size: clamp(1.5rem, 3.2vw, 2.4rem);
   line-height: 0.95;
   letter-spacing: 0.01em;
