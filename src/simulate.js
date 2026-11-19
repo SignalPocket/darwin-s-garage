@@ -4,7 +4,7 @@
 // link reproduce the original run exactly.
 
 import Matter from 'matter-js';
-import { buildCar, applyMotor, hasNaNPosition, lowestOffset } from './car.js';
+import { buildCar, applyMotor, hasNaNPosition, chassisTilt, lowestOffset } from './car.js';
 import { heightAt, finishX, trackSegments, isValidTrack } from './track.js';
 
 const { Engine, Composite, Bodies } = Matter;
@@ -12,6 +12,8 @@ const { Engine, Composite, Bodies } = Matter;
 export const SIM_DEFAULTS = Object.freeze({
   timestep: 1000 / 60,
   maxTicks: 1200,
+  flipAngle: (Math.PI * 2) / 3,
+  continueAfterFlip: true,
   // A car that has gained under stallDistance px over stallTicks has stopped;
   // ending early keeps a 40-generation run inside its time budget.
   stallTicks: 100,
@@ -81,6 +83,10 @@ export function createSimulation(genome, track, options = {}) {
     if (x > state.distance) state.distance = x;
     if (recordFrames) frames.push(captureFrame(car, state.ticks - 1));
 
+    if (!config.continueAfterFlip && chassisTilt(car) >= config.flipAngle) {
+      finish('flipped', true);
+      return;
+    }
     if (reachedGoal(car.chassis.position.x, goal)) {
       state.finished = true;
       state.done = true;

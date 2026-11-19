@@ -22,6 +22,12 @@ test('createRun starts with no history and does no work up front', () => {
   const run = smallRun();
   assert.deepEqual(run.history, []);
   assert.equal(run.config.populationSize, 6);
+  assert.equal(run.config.continueAfterFlip, true);
+});
+
+test('createRun accepts disabling continued driving after flips', () => {
+  assert.equal(smallRun({ continueAfterFlip: false }).config.continueAfterFlip, false);
+  assert.throws(() => smallRun({ continueAfterFlip: 'no' }), TypeError);
 });
 
 test('createRun rejects an invalid track', () => {
@@ -126,14 +132,15 @@ test('different seeds produce different runs', () => {
 test('the async runner produces bit-identical history to the sync runner', async () => {
   // The page computes generations asynchronously; if that diverged from the
   // synchronous path, a share link would replay a different run than it scored.
-  const sync = smallRun();
+  const sync = smallRun({ continueAfterFlip: false });
   runAll(sync);
-  const async = smallRun();
+  const async = smallRun({ continueAfterFlip: false });
   await runAllAsync(async);
   assert.deepEqual(
     async.history.map((g) => g.fitnesses),
     sync.history.map((g) => g.fitnesses),
   );
+  assert.ok(sync.history.some((g) => g.results.some((result) => result.failReason === 'flipped')));
 });
 
 test('the async runner reports each generation as it lands', async () => {

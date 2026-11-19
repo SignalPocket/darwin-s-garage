@@ -60,6 +60,7 @@ const dom = {
   generationsInput: el('generations-input'),
   populationSizeInput: el('population-size-input'),
   eliteCountInput: el('elite-count-input'),
+  continueAfterFlip: el('continue-after-flip'),
   courseLength: el('course-length'),
   courseRoughness: el('course-roughness'),
   courseSteepness: el('course-steepness'),
@@ -86,6 +87,7 @@ const SEED_PARAM = 'seed';
 const GENERATIONS_PARAM = 'generations';
 const POPULATION_SIZE_PARAM = 'populationSize';
 const ELITE_COUNT_PARAM = 'eliteCount';
+const CONTINUE_AFTER_FLIP_PARAM = 'continueAfterFlip';
 const COURSE_LENGTH_PARAM = 'courseLength';
 const ROUGHNESS_PARAM = 'roughness';
 const STEEPNESS_PARAM = 'steepness';
@@ -131,6 +133,11 @@ function readInitialEliteCount() {
     ELITE_COUNT_LIMITS.min,
     initialPopulationSize,
   );
+}
+
+function readInitialContinueAfterFlip() {
+  const url = new URL(window.location.href);
+  return url.searchParams.get(CONTINUE_AFTER_FLIP_PARAM) !== '0';
 }
 
 function readInitialCourse() {
@@ -196,6 +203,7 @@ const initialSeed = readInitialSeed();
 const initialGenerations = readInitialGenerations();
 const initialPopulationSize = readInitialPopulationSize();
 const initialEliteCount = readInitialEliteCount();
+const initialContinueAfterFlip = readInitialContinueAfterFlip();
 const initialCourse = readInitialCourse();
 const track = createDefaultTrack(initialCourse);
 
@@ -205,6 +213,7 @@ const state = {
     generations: initialGenerations,
     populationSize: initialPopulationSize,
     eliteCount: initialEliteCount,
+    continueAfterFlip: initialContinueAfterFlip,
   }),
   generation: 0,
   individual: null, // null = "the best of this generation"
@@ -243,7 +252,9 @@ function loadReplay() {
   if (!genome) return;
   const key = replayKey();
   if (!replayCache.has(key)) {
-    const result = replayGenome(genome, track);
+    const result = replayGenome(genome, track, {
+      continueAfterFlip: state.run.config.continueAfterFlip,
+    });
     replayCache.set(key, {
       frames: result.frames,
       result,
@@ -332,6 +343,14 @@ function popStat(node) {
   // same element is silently dropped.
   void node.offsetWidth;
   node.classList.add('is-popped');
+}
+
+function shakeHud() {
+  if (reducedMotion) return;
+  const hud = document.querySelector('.hud');
+  hud.classList.remove('is-shaking');
+  void hud.offsetWidth;
+  hud.classList.add('is-shaking');
 }
 
 /** The win celebration for a new best-ever fitness: gold flash + confetti. */
@@ -639,6 +658,10 @@ function announceOutcome(result) {
   } else if (result.failReason === 'exploded') {
     showVerdict('Came apart', 'fail');
     audio.thud();
+  } else if (result.failReason === 'flipped') {
+    showVerdict('Rolled it', 'fail');
+    audio.thud();
+    shakeHud();
   } else {
     showVerdict('Out of time', 'fail');
   }
@@ -686,6 +709,10 @@ function buildShareUrl(genome, generation) {
   url.searchParams.set(SEED_PARAM, String(state.run.track.seed));
   url.searchParams.set(POPULATION_SIZE_PARAM, String(state.run.config.populationSize));
   url.searchParams.set(ELITE_COUNT_PARAM, String(state.run.config.eliteCount));
+  url.searchParams.set(
+    CONTINUE_AFTER_FLIP_PARAM,
+    state.run.config.continueAfterFlip ? '1' : '0',
+  );
   url.searchParams.set(COURSE_LENGTH_PARAM, String(state.run.track.length));
   url.searchParams.set(ROUGHNESS_PARAM, String(state.run.track.roughness));
   url.searchParams.set(STEEPNESS_PARAM, String(state.run.track.steepness));
@@ -712,6 +739,7 @@ function wireControls() {
   dom.populationSizeInput.value = String(initialPopulationSize);
   dom.eliteCountInput.value = String(initialEliteCount);
   dom.eliteCountInput.max = String(initialPopulationSize);
+  dom.continueAfterFlip.checked = initialContinueAfterFlip;
   dom.courseLength.value = String(initialCourse.length);
   dom.courseRoughness.value = String(initialCourse.roughness);
   dom.courseSteepness.value = String(initialCourse.steepness);
@@ -808,6 +836,10 @@ function wireControls() {
     url.searchParams.set(GENERATIONS_PARAM, String(generations));
     url.searchParams.set(POPULATION_SIZE_PARAM, String(populationSize));
     url.searchParams.set(ELITE_COUNT_PARAM, String(eliteCount));
+    url.searchParams.set(
+      CONTINUE_AFTER_FLIP_PARAM,
+      dom.continueAfterFlip.checked ? '1' : '0',
+    );
     url.searchParams.set(COURSE_LENGTH_PARAM, String(courseLength));
     url.searchParams.set(ROUGHNESS_PARAM, String(roughness));
     url.searchParams.set(STEEPNESS_PARAM, String(steepness));

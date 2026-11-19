@@ -27,8 +27,8 @@ is the wow moment and must land before anything else in this backlog.
     horizontal distance the chassis reached.
   - Calling `simulateGenome` twice with the same genome, track, and seed returns bit-identical
     fitness (determinism check).
-  - A chassis that tilts past a configurable flip-angle threshold is marked failed and its
-    fitness is capped at its distance at the moment of failure.
+  - A run setting determines whether a chassis that passes the flip-angle threshold keeps
+    driving or is marked failed at its distance at the moment of the flip.
 
 - [x] **1.4 Selection, crossover, and mutation**
   - `evolvePopulation(population, fitnesses)` returns a next generation of the same size.

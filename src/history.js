@@ -23,6 +23,7 @@ export const RUN_DEFAULTS = Object.freeze({
   seed: 1,
   populationSize: EVOLUTION_DEFAULTS.populationSize,
   generations: 40,
+  continueAfterFlip: true,
   // Budget plus worst-case slice overshoot has to stay under the ~50ms the
   // page can stall without feeling stuck, so the two are tuned together.
   chunkBudgetMs: 20,
@@ -45,6 +46,9 @@ export function createRun(track, options = {}) {
   const config = { ...RUN_DEFAULTS, ...EVOLUTION_DEFAULTS, ...options };
   if (!Number.isInteger(config.generations) || config.generations < 1) {
     throw new RangeError(`createRun: generations must be a positive integer, got ${config.generations}`);
+  }
+  if (typeof config.continueAfterFlip !== 'boolean') {
+    throw new TypeError('createRun: continueAfterFlip must be a boolean');
   }
   if (
     !Number.isInteger(config.populationSize) ||
@@ -88,7 +92,9 @@ function populationFor(run) {
  */
 export function runGeneration(run) {
   const population = populationFor(run);
-  const results = population.map((genome) => simulateGenome(genome, run.track));
+  const results = population.map((genome) =>
+    simulateGenome(genome, run.track, { continueAfterFlip: run.config.continueAfterFlip }),
+  );
   return recordGeneration(run, population, results);
 }
 
@@ -120,7 +126,9 @@ export async function runGenerationAsync(run, options = {}) {
     // checked before setup too — otherwise setup and the first ticks stack into
     // one oversized block.
     await spendBudget();
-    const sim = createSimulation(genome, run.track);
+    const sim = createSimulation(genome, run.track, {
+      continueAfterFlip: run.config.continueAfterFlip,
+    });
     while (!sim.done) {
       sim.step(ticksPerSlice);
       await spendBudget();

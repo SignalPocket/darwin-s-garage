@@ -641,6 +641,31 @@ body {
   min-width: 0;
 }
 
+.seed-run__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.25;
+  cursor: pointer;
+}
+
+.seed-run__toggle input {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--accent-ink);
+  flex: none;
+}
+
+.seed-run__toggle input:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
 .seed-run__label {
   display: flex;
   align-items: baseline;

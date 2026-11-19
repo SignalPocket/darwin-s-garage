@@ -226,6 +226,10 @@
               aria-describedby="seed-help"
             />
           </label>
+          <label class="seed-run__toggle" for="continue-after-flip">
+            <input id="continue-after-flip" name="continueAfterFlip" type="checkbox" checked />
+            <span>Keep flipped cars running</span>
+          </label>
           <label class="seed-run__field" for="course-length">
             <span class="seed-run__label">Course length (m)</span>
             <input
@@ -286,7 +290,8 @@
           </div>
           <p id="seed-help" class="seed-run__help">
             The run seed drives car evolution and course generation. Set the population and how
-            many top cars carry over unchanged; adjust length and terrain settings to shape a course.
+            many top cars carry over unchanged; choose whether flipped cars continue, and adjust
+            length and terrain settings to shape a course.
           </p>
         </form>
 
@@ -363,13 +368,11 @@
             Nobody designed any of them, and most of generation 0 tips over inside a few metres.
           </p>
           <p>
-            Every car then drives the same hill course inside a Matter.js physics simulation, and
-            the distance it covers before it flips, stalls, or runs out of time becomes its
-            fitness. Tournament selection picks the parents, crossover splices two chassis into a
-            child, mutation nudges the wheels, and the next generation rolls out. Set any course
-            length from 100 to 30,000 metres and tune roughness, steepness, and obstacle frequency.
-            The run seed recreates both the course and population. Nobody drew the winning shape.
-            Selection found it.
+            Every car then drives the same hill course inside a Matter.js physics simulation.
+            Fitness is the furthest distance reached; the run setting controls whether a flipped
+            car keeps driving or stops at the flip. Set any course length from 100 to 30,000 metres
+            and tune roughness, steepness, and obstacle frequency. The run seed recreates both the
+            course and population. Nobody drew the winning shape. Selection found it.
           </p>
 
           <h3>What the three operators do</h3>

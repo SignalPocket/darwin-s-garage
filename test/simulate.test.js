@@ -82,6 +82,22 @@ test('a flipped car continues until it stalls or reaches its tick budget', () =>
   assert.equal(result.failed, false);
 });
 
+test('a flipped car stops when continued driving after a flip is disabled', () => {
+  const result = simulateGenome(genomeFor(0), track, {
+    maxTicks: 1200,
+    stallTicks: 1e9,
+    continueAfterFlip: false,
+    recordFrames: true,
+  });
+  assert.ok(
+    result.frames.some((frame) => Math.abs(normalizeAngle(frame.chassis.angle)) >= SIM_DEFAULTS.flipAngle),
+    'test car should flip during its run',
+  );
+  assert.equal(result.failReason, 'flipped');
+  assert.equal(result.failed, true);
+  assert.ok(result.ticks < 1200, 'disabled flip continuation should stop the run early');
+});
+
 test('simulateGenome marks a car that reaches the finish as finished', () => {
   const result = simulateGenome(goodCar(), track, { maxTicks: 4000 });
   if (result.finished) {
