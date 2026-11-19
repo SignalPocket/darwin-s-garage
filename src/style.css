@@ -910,6 +910,129 @@ body {
   color: #8a6a00;
 }
 
+.genetics {
+  margin-top: var(--space-2);
+  border: 2px solid rgba(43, 38, 32, 0.28);
+  border-radius: var(--radius);
+  background: rgba(255, 252, 244, 0.42);
+}
+
+.genetics__summary {
+  padding: 10px 12px;
+  color: var(--surface-2);
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.genetics__summary:focus-visible,
+.genetics__outline summary:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.genetics__content {
+  padding: 0 12px 12px;
+}
+
+.genetics__meta,
+.genetics__summary-text,
+.genetics__note {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.genetics__meta {
+  margin-bottom: var(--space-1);
+  font-family: var(--font-mono);
+}
+
+.genetics__groups {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.7fr) minmax(0, 1.3fr);
+  gap: var(--space-2);
+}
+
+.genetics__group {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(43, 38, 32, 0.2);
+  border-radius: var(--radius);
+  background: rgba(255, 252, 244, 0.55);
+}
+
+.genetics__heading,
+.genetics__wheel-title {
+  margin: 0;
+  color: var(--surface-2);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.genetics__vertices {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: 4px 12px;
+  margin: var(--space-1) 0 0;
+  padding-left: 1.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+}
+
+.genetics__wheels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+}
+
+.genetics__wheel {
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid rgba(43, 38, 32, 0.18);
+  border-radius: var(--radius);
+}
+
+.genetics__traits {
+  display: grid;
+  gap: 2px;
+  margin: 6px 0;
+  font-size: 0.75rem;
+}
+
+.genetics__trait {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.genetics__trait dt {
+  color: var(--text-muted);
+}
+
+.genetics__trait dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  text-align: right;
+}
+
+.genetics__outline summary {
+  color: var(--accent-ink);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.genetics__vertices--wheel {
+  grid-template-columns: repeat(auto-fill, minmax(138px, 1fr));
+  font-size: 0.68rem;
+}
+
+.genetics__note {
+  margin-top: var(--space-1);
+}
+
 /* ---------- the write-up below the app ---------- */
 
 .prose {
@@ -1102,6 +1225,10 @@ body {
   .seed-run__controls {
     grid-column: 1 / -1;
     align-self: auto;
+  }
+
+  .genetics__groups {
+    grid-template-columns: 1fr;
   }
 }
 

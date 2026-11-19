@@ -293,9 +293,32 @@
       <section class="floor" aria-label="Population overview">
         <div class="floor__head">
           <h2 class="floor__title">The floor</h2>
-          <p class="floor__hint" id="floor-hint">Every car in this generation. Tap one to watch its run.</p>
+          <p class="floor__hint" id="floor-hint">
+            Every car in this generation. Tap one to watch its run and inspect its genes.
+          </p>
         </div>
         <div id="population" class="floor__grid"></div>
+        <details id="genetics-panel" class="genetics" open>
+          <summary class="genetics__summary">Selected car genetics</summary>
+          <div class="genetics__content">
+            <p id="genetics-meta" class="genetics__meta"></p>
+            <div class="genetics__groups">
+              <section class="genetics__group" aria-labelledby="genetics-chassis-title">
+                <h3 id="genetics-chassis-title" class="genetics__heading">Chassis</h3>
+                <p id="genetics-chassis-summary" class="genetics__summary-text"></p>
+                <ol id="genetics-vertices" class="genetics__vertices"></ol>
+              </section>
+              <section class="genetics__group" aria-labelledby="genetics-wheels-title">
+                <h3 id="genetics-wheels-title" class="genetics__heading">Wheels</h3>
+                <div id="genetics-wheels" class="genetics__wheels"></div>
+              </section>
+            </div>
+            <p class="genetics__note">
+              Chassis coordinates are in pixels from its center. Wheel outline coordinates are
+              normalized from −1 to 1.
+            </p>
+          </div>
+        </details>
       </section>
 
       <section class="prose" aria-labelledby="about-title">

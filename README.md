@@ -50,7 +50,8 @@ rubble field that filters out the shapes that only topple forward, then a climb.
 - **Generation scrubber.** The page evolves 40 generations by default and opens the slider as each
   one lands. Choose any positive generation count and seed, plus the course length, roughness,
   steepness, and obstacle frequency. Scrub to any generation to replay its best car, or tap any
-  car on the floor to watch that one instead.
+  car on the floor to watch that one instead and inspect its chassis coordinates, wheel attachments,
+  radii, torque, and freeform wheel outlines. Shared cars can be inspected too.
 - **Hall of fame.** The best run so far is pinned to the HUD with its own share button and updates
   the moment a new best-ever fitness appears.
 - **Shareable replay links.** Any car packs into a URL carrying its full genome, checksummed so a

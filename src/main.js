@@ -45,6 +45,10 @@ const dom = {
   shareLabel: el('share-label'),
   population: el('population'),
   floorHint: el('floor-hint'),
+  geneticsMeta: el('genetics-meta'),
+  geneticsChassisSummary: el('genetics-chassis-summary'),
+  geneticsVertices: el('genetics-vertices'),
+  geneticsWheels: el('genetics-wheels'),
   shareError: el('share-error'),
   seedRun: el('seed-run'),
   seedInput: el('seed-input'),
@@ -399,6 +403,82 @@ function renderFloor() {
     chip.classList.toggle('is-best', i === generation.bestIndex);
     chip.setAttribute('aria-pressed', String(i === selected && !state.guest));
   });
+  renderGenetics(generation, selected);
+}
+
+function renderGenetics(generation, selected) {
+  const genome = currentGenome();
+  if (!genome) return;
+
+  const label = state.guest
+    ? `Shared car · generation ${state.guest.generation}`
+    : `Generation ${generation.index} · car ${selected + 1}${
+        selected === generation.bestIndex ? ' · generation best' : ''
+      }`;
+  dom.geneticsMeta.textContent = label;
+
+  const xs = genome.chassis.map((point) => point.x);
+  const ys = genome.chassis.map((point) => point.y);
+  const width = Math.max(...xs) - Math.min(...xs);
+  const height = Math.max(...ys) - Math.min(...ys);
+  dom.geneticsChassisSummary.textContent =
+    `${genome.chassis.length} vertices · ${width} × ${height} px`;
+  dom.geneticsVertices.replaceChildren(
+    ...genome.chassis.map((point, index) => {
+      const item = document.createElement('li');
+      item.textContent = `V${index + 1}: (${point.x}, ${point.y})`;
+      return item;
+    }),
+  );
+  dom.geneticsWheels.replaceChildren(
+    ...genome.wheels.map((wheel, index) => buildWheelGenes(wheel, index)),
+  );
+}
+
+function buildWheelGenes(wheel, index) {
+  const article = document.createElement('article');
+  article.className = 'genetics__wheel';
+
+  const heading = document.createElement('h4');
+  heading.className = 'genetics__wheel-title';
+  heading.textContent = `Wheel ${index + 1}`;
+  article.append(heading);
+
+  const traits = document.createElement('dl');
+  traits.className = 'genetics__traits';
+  for (const [label, value] of [
+    ['Attached at', `chassis vertex ${wheel.vertexIndex + 1}`],
+    ['Radius', `${wheel.radius} px`],
+    ['Torque', wheel.torque.toFixed(3)],
+    ['Outline', `${wheel.shape.length} vertices`],
+  ]) {
+    const row = document.createElement('div');
+    row.className = 'genetics__trait';
+    const term = document.createElement('dt');
+    term.textContent = label;
+    const description = document.createElement('dd');
+    description.textContent = value;
+    row.append(term, description);
+    traits.append(row);
+  }
+  article.append(traits);
+
+  const outline = document.createElement('details');
+  outline.className = 'genetics__outline';
+  const summary = document.createElement('summary');
+  summary.textContent = 'Show outline coordinates';
+  const points = document.createElement('ol');
+  points.className = 'genetics__vertices genetics__vertices--wheel';
+  points.replaceChildren(
+    ...wheel.shape.map((point, pointIndex) => {
+      const item = document.createElement('li');
+      item.textContent = `P${pointIndex + 1}: (${point.x.toFixed(3)}, ${point.y.toFixed(3)})`;
+      return item;
+    }),
+  );
+  outline.append(summary, points);
+  article.append(outline);
+  return article;
 }
 
 function buildChip(genome, generation, index) {
@@ -821,6 +901,7 @@ async function boot() {
         dom.boot.hidden = true;
         document.body.classList.remove('is-booting');
         if (!hadGuest) selectGeneration(0);
+        else renderFloor();
       }
       // Let the slider reach whatever has been computed so far, so the page is
       // scrubbable long before the configured run is complete.
