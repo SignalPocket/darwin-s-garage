@@ -109,7 +109,7 @@ test('crossover of a genome with itself reproduces that genome', () => {
   assert.deepEqual(child, parent);
 });
 
-test('crossover randomizes gene order from the seeded rng before swapping segments', () => {
+test('crossover randomizes individual gene order from the seeded rng', () => {
   const parentA = normalizeGenome({
     chassis: [
       { x: 60, y: 0 },
@@ -131,25 +131,73 @@ test('crossover randomizes gene order from the seeded rng before swapping segmen
       torque: 0.1,
     })),
   });
-  const lineagePattern = (child) => [
-    ...child.chassis.map((point, index) => {
-      if (JSON.stringify(point) === JSON.stringify(parentA.chassis[index])) return 'A';
-      if (JSON.stringify(point) === JSON.stringify(parentB.chassis[index])) return 'B';
-      return '?';
-    }),
-    ...child.wheels.map((wheel) => (wheel.radius === 12 ? 'A' : 'B')),
-  ];
-  const child = crossover(parentA, parentB, createRng(31));
-  const pattern = lineagePattern(child);
-  const transitions = pattern.reduce(
-    (count, parent, index) => count + (index > 0 && parent !== pattern[index - 1] ? 1 : 0),
-    0,
+  const lineagePattern = (child) => {
+    const sourceOf = (valueA, valueB, value) =>
+      JSON.stringify(value) === JSON.stringify(valueA)
+        ? 'A'
+        : JSON.stringify(value) === JSON.stringify(valueB)
+          ? 'B'
+          : '?';
+    return [
+      ...child.chassis.map((point, index) =>
+        sourceOf(parentA.chassis[index], parentB.chassis[index], point),
+      ),
+      ...child.wheels.flatMap((wheel, index) => {
+        const wheelA = parentA.wheels[index];
+        const wheelB = parentB.wheels[index];
+        return [
+          sourceOf(wheelA.vertexIndex, wheelB.vertexIndex, wheel.vertexIndex),
+          sourceOf(wheelA.radius, wheelB.radius, wheel.radius),
+          sourceOf(wheelA.torque, wheelB.torque, wheel.torque),
+          ...wheel.shape.map((point, pointIndex) =>
+            sourceOf(wheelA.shape[pointIndex], wheelB.shape[pointIndex], point),
+          ),
+        ];
+      }),
+    ];
+  };
+  const children = Array.from({ length: 20 }, (_, seed) =>
+    crossover(parentA, parentB, createRng(seed + 31)),
   );
+  assert.ok(children.every(isValidGenome));
+  assert.ok(children.some((child) => new Set(lineagePattern(child)).size > 1));
+  assert.ok(
+    new Set(children.map((child) => JSON.stringify(lineagePattern(child)))).size > 1,
+    'different seeds should produce different gene order and crossover results',
+  );
+});
 
-  assert.ok(isValidGenome(child));
-  assert.ok(pattern.includes('A') && pattern.includes('B'));
-  assert.ok(transitions > 3, `expected shuffled segments to disrupt linear adjacency: ${pattern}`);
-  assert.deepEqual(child, crossover(parentA, parentB, createRng(31)));
+test('crossover treats wheel properties as separate genes', () => {
+  const parentA = createRandomGenome(createRng(41));
+  const parentB = createRandomGenome(createRng(42));
+  parentA.wheels = parentA.wheels.slice(0, 2).map((wheel) => ({
+    ...wheel,
+    radius: 12,
+    torque: 0.01,
+    shape: wheel.shape.slice(0, 8),
+  }));
+  parentB.wheels = parentB.wheels.slice(0, 2).map((wheel) => ({
+    ...wheel,
+    radius: 33,
+    torque: 0.11,
+    shape: wheel.shape.slice(0, 8),
+  }));
+  const a = normalizeGenome(parentA);
+  const b = normalizeGenome(parentB);
+
+  const children = Array.from({ length: 200 }, (_, seed) =>
+    crossover(a, b, createRng(seed)),
+  );
+  assert.ok(
+    children.some((child) =>
+      child.wheels.some(
+        (wheel) =>
+          (wheel.radius === 12 && wheel.torque === 0.11) ||
+          (wheel.radius === 33 && wheel.torque === 0.01),
+      ),
+    ),
+    'wheel radius and torque should be inherited independently',
+  );
 });
 
 test('crossover is deterministic for the same parents and random seed', () => {

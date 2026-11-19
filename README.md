@@ -25,13 +25,13 @@ chassis and wheel-outline vertices, then move them to reshape both polygons. Gen
 of junk that flops, flips, and goes nowhere on the rubble field.
 
 From there a real genetic algorithm takes over. Tournament selection picks parents, crossover
-shuffles the gene order with the run's seeded RNG and swaps contiguous segments of chassis-vertex
-and wheel genes, and mutation
-nudges wheel position, radius, torque, and chassis geometry. Set any course length from 100 to 30,000 metres, then independently adjust
-roughness, steepness, and obstacle frequency. The run seed drives both the starting population and
-terrain generation, so replaying the same seed and settings recreates the same experiment. Longer
-routes get deterministic rolling hills and rubble, and their simulation time budget scales with
-the finish distance.
+shuffles individual chassis, wheel-trait, and wheel-outline genes with the run's seeded RNG and
+swaps contiguous segments. Mutation nudges wheel position, radius, torque, and chassis geometry.
+Set any course length from 100 to 30,000 metres, then independently adjust roughness, steepness,
+and obstacle frequency. The run seed drives both the starting population and terrain generation,
+so replaying the same seed and settings recreates the same experiment. Longer routes get
+deterministic rolling hills and rubble, and their simulation time budget scales with the finish
+distance.
 
 ## Why it was worth building
 
@@ -46,8 +46,8 @@ rubble field that filters out the shapes that only topple forward, then a climb.
 
 - **Evolution engine** with tournament selection, crossover, and mutation over chassis geometry,
   wheel shape, radius, and torque, tuned so the fitness curve climbs steadily instead of solving
-  the course by generation 4. Cars start with round 24-point wheel outlines that can deform and
-  gain or lose points through evolution, just like the chassis outline.
+  the course by generation 4. Cars start with round wheel outlines of varied vertex counts that
+  can deform and gain or lose points through evolution, just like the chassis outline.
 - **Generation scrubber.** The page evolves 40 generations by default and opens the slider as each
   one lands. Choose any positive generation count and seed, plus the course length, roughness,
   steepness, and obstacle frequency. Scrub to any generation to replay its best car, or tap any

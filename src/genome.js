@@ -25,6 +25,7 @@ export const GENOME_LIMITS = Object.freeze({
 
 export const LEGACY_WHEEL_SHAPES = Object.freeze(['circle', 'triangle', 'square', 'hexagon']);
 const DEFAULT_CIRCLE_VERTICES = 24;
+const MAX_INITIAL_WHEEL_VERTICES = 12;
 
 export function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -80,7 +81,9 @@ export function createRandomGenome(rng) {
     vertexIndex: randomInt(rng, 0, vertexCount - 1),
     radius: randomFloat(rng, GENOME_LIMITS.minWheelRadius, GENOME_LIMITS.maxWheelRadius),
     torque: randomFloat(rng, GENOME_LIMITS.minTorque, GENOME_LIMITS.maxTorque),
-    shape: 'circle',
+    shape: regularWheelShape(
+      randomInt(rng, GENOME_LIMITS.minWheelVertices, MAX_INITIAL_WHEEL_VERTICES),
+    ),
   }));
 
   // Normalized on the way out so every genome in the system — random, bred, or

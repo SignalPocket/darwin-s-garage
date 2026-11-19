@@ -60,19 +60,16 @@ export function selectParent(population, fitnesses, rng, k = EVOLUTION_DEFAULTS.
 }
 
 /**
- * Recombine chassis-vertex and wheel genes using alternating segments in a
- * seeded, shuffled gene order. The first parent supplies the child's structure;
- * one to three crossover points switch which parent's genes fill each segment.
+ * Recombine structural counts, chassis vertices, and individual wheel genes in
+ * alternating segments of a seeded, shuffled gene order. One to three crossover
+ * points switch which parent's genes fill each segment.
  */
 export function crossover(parentA, parentB, rng) {
   const a = normalizeGenome(parentA);
   const b = normalizeGenome(parentB);
   const base = rng() < 0.5 ? a : b;
   const other = base === a ? b : a;
-  const chromosome = [
-    ...base.chassis.map((_, index) => ({ kind: 'chassis', index })),
-    ...base.wheels.map((_, index) => ({ kind: 'wheel', index })),
-  ];
+  const chromosome = crossoverGenes(a, b);
   for (let index = chromosome.length - 1; index > 0; index -= 1) {
     const swapIndex = randomInt(rng, 0, index);
     [chromosome[index], chromosome[swapIndex]] = [chromosome[swapIndex], chromosome[index]];
@@ -84,34 +81,103 @@ export function crossover(parentA, parentB, rng) {
     crossoverPoints.add(randomInt(rng, 1, chromosome.length - 1));
   }
 
-  const child = {
-    chassis: Array(base.chassis.length),
-    wheels: Array(base.wheels.length),
-  };
+  const inherited = new Map();
   let useBase = rng() < 0.5;
   for (const [locus, gene] of chromosome.entries()) {
     if (crossoverPoints.has(locus)) useBase = !useBase;
     const source = useBase ? base : other;
     const fallback = useBase ? other : base;
-    const sourceGenes = source[gene.kind === 'chassis' ? 'chassis' : 'wheels'];
-    const fallbackGenes = fallback[gene.kind === 'chassis' ? 'chassis' : 'wheels'];
-    const value = sourceGenes[gene.index] ?? fallbackGenes[gene.index];
-    if (gene.kind === 'chassis') {
-      child.chassis[gene.index] = { x: value.x, y: value.y };
-    } else {
-      child.wheels[gene.index] = {
-        ...value,
-        shape: value.shape.map((point) => ({ x: point.x, y: point.y })),
-      };
-    }
+    const value = geneValue(source, gene) ?? geneValue(fallback, gene);
+    inherited.set(geneKey(gene), value);
   }
 
-  // Mixing vertex genes can rarely make a degenerate chassis. Preserve the
-  // chosen parent's valid chassis in that case; wheel genes remain recombined.
-  if (!isValidGenome(child)) {
+  const chassisCount = inherited.get(geneKey({ kind: 'chassisCount' }));
+  const wheelCount = inherited.get(geneKey({ kind: 'wheelCount' }));
+  const child = {
+    chassis: Array.from({ length: chassisCount }, (_, index) =>
+      inherited.get(geneKey({ kind: 'chassisVertex', index })),
+    ),
+    wheels: Array.from({ length: wheelCount }, (_, wheelIndex) => {
+      const shapeCount = inherited.get(geneKey({ kind: 'wheelShapeCount', wheelIndex }));
+      return {
+        vertexIndex: inherited.get(geneKey({ kind: 'wheelVertex', wheelIndex })),
+        radius: inherited.get(geneKey({ kind: 'wheelRadius', wheelIndex })),
+        torque: inherited.get(geneKey({ kind: 'wheelTorque', wheelIndex })),
+        shape: Array.from({ length: shapeCount }, (_, index) =>
+          inherited.get(geneKey({ kind: 'wheelShapePoint', wheelIndex, index })),
+        ),
+      };
+    }),
+  };
+
+  // Repair independently recombined outlines without discarding unrelated genes.
+  if (!isValidGenome({ chassis: child.chassis, wheels: base.wheels })) {
     child.chassis = base.chassis.map((point) => ({ x: point.x, y: point.y }));
   }
+  for (const [wheelIndex, wheel] of child.wheels.entries()) {
+    if (!isValidGenome({ chassis: child.chassis, wheels: [wheel, wheel] })) {
+      const fallbackWheel = base.wheels[wheelIndex] ?? other.wheels[wheelIndex];
+      wheel.shape = fallbackWheel.shape.map((point) => ({ x: point.x, y: point.y }));
+    }
+  }
   return normalizeGenome(child);
+}
+
+function crossoverGenes(a, b) {
+  const genes = [{ kind: 'chassisCount' }, { kind: 'wheelCount' }];
+  const chassisVertexCount = Math.max(a.chassis.length, b.chassis.length);
+  for (let index = 0; index < chassisVertexCount; index += 1) {
+    genes.push({ kind: 'chassisVertex', index });
+  }
+
+  const wheelCount = Math.max(a.wheels.length, b.wheels.length);
+  for (let wheelIndex = 0; wheelIndex < wheelCount; wheelIndex += 1) {
+    genes.push(
+      { kind: 'wheelVertex', wheelIndex },
+      { kind: 'wheelRadius', wheelIndex },
+      { kind: 'wheelTorque', wheelIndex },
+      { kind: 'wheelShapeCount', wheelIndex },
+    );
+    const shapeVertexCount = Math.max(
+      a.wheels[wheelIndex]?.shape.length ?? 0,
+      b.wheels[wheelIndex]?.shape.length ?? 0,
+    );
+    for (let index = 0; index < shapeVertexCount; index += 1) {
+      genes.push({ kind: 'wheelShapePoint', wheelIndex, index });
+    }
+  }
+  return genes;
+}
+
+function geneKey({ kind, wheelIndex, index }) {
+  return [kind, wheelIndex, index].join(':');
+}
+
+function geneValue(genome, { kind, wheelIndex, index }) {
+  switch (kind) {
+    case 'chassisCount':
+      return genome.chassis.length;
+    case 'wheelCount':
+      return genome.wheels.length;
+    case 'chassisVertex': {
+      const point = genome.chassis[index];
+      return point && { x: point.x, y: point.y };
+    }
+    case 'wheelVertex':
+      return genome.wheels[wheelIndex]?.vertexIndex;
+    case 'wheelRadius':
+      return genome.wheels[wheelIndex]?.radius;
+    case 'wheelTorque':
+      return genome.wheels[wheelIndex]?.torque;
+    case 'wheelShapeCount':
+      return genome.wheels[wheelIndex]?.shape.length;
+    case 'wheelShapePoint': {
+      const point = genome.wheels[wheelIndex]?.shape[index];
+      return point && { x: point.x, y: point.y };
+    }
+    default:
+      throw new TypeError(`geneValue: unknown gene kind ${kind}`);
+  }
 }
 
 /**

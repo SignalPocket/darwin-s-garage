@@ -21,8 +21,8 @@ who *does* know GAs can see real selection/crossover/mutation happening, not a c
 
 1. A **genome** is plain data: a polygon chassis (4-8 vertices) plus 2-4 wheels, each wheel
    attached at a chassis vertex with its own radius, torque, and polygon outline. New cars start
-   with five chassis vertices and round, 24-point wheel outlines; mutation can add, remove, and
-   move vertices in either outline. See `src/genome.js`.
+   with five chassis vertices and round wheel outlines of varied vertex counts; mutation can add,
+   remove, and move vertices in either outline. See `src/genome.js`.
 2. A **population** of genomes (generation 0: pure random) is built into Matter.js bodies and
    dropped on a seeded, adjustable track. Each car runs the physics sim for a budget scaled to the
    course length.
@@ -32,8 +32,8 @@ who *does* know GAs can see real selection/crossover/mutation happening, not a c
    accidentally rewarding degenerate strategies (e.g. a car that just topples forward once) — is
    the central tuning problem of this project.
 4. The next generation is bred from the current one: tournament **selection** of
-   parents, **crossover** that shuffles the gene order from the run's seeded RNG and alternates
-   contiguous segments of chassis-vertex and wheel genes,
+   parents, **crossover** that shuffles individual chassis, wheel-trait, and wheel-outline genes
+   from the run's seeded RNG and alternates contiguous segments,
    **mutation** that nudges chassis and wheel-outline points and wheel parameters, and adds or
    removes vertices from either outline. Every generation is stored (not just the current one), so
    a generation slider can jump anywhere in history and replay it exactly.

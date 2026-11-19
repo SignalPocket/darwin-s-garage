@@ -29,9 +29,22 @@ test('createRandomGenome produces wheels with valid indices, radii, and torques'
       assert.ok(wheel.radius >= L.minWheelRadius && wheel.radius <= L.maxWheelRadius);
       assert.ok(wheel.torque >= L.minTorque && wheel.torque <= L.maxTorque);
       assert.ok(Array.isArray(wheel.shape));
-      assert.ok(wheel.shape.length >= 10 && wheel.shape.length <= L.maxWheelVertices);
+      assert.ok(
+        wheel.shape.length >= L.minWheelVertices && wheel.shape.length <= L.maxWheelVertices,
+      );
+      assert.notEqual(wheel.shape.length, 24);
     }
   }
+});
+
+test('createRandomGenome varies initial wheel vertex counts', () => {
+  const counts = new Set();
+  for (let seed = 0; seed < 100; seed += 1) {
+    for (const wheel of createRandomGenome(createRng(seed)).wheels) {
+      counts.add(wheel.shape.length);
+    }
+  }
+  assert.ok(counts.size > 1, 'initial wheel outlines should have varied vertex counts');
 });
 
 test('createRandomGenome is deterministic for a given seed', () => {
