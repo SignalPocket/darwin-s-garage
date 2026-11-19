@@ -334,14 +334,6 @@ function popStat(node) {
   node.classList.add('is-popped');
 }
 
-function shakeHud() {
-  if (reducedMotion) return;
-  const hud = document.querySelector('.hud');
-  hud.classList.remove('is-shaking');
-  void hud.offsetWidth;
-  hud.classList.add('is-shaking');
-}
-
 /** The win celebration for a new best-ever fitness: gold flash + confetti. */
 function celebrateBestEver() {
   if (reducedMotion) return;
@@ -641,11 +633,7 @@ function announceOutcome(result) {
   }
   if (state.announcedFail) return;
   state.announcedFail = true;
-  if (result.failReason === 'flipped') {
-    showVerdict('Rolled it', 'fail');
-    audio.thud();
-    shakeHud();
-  } else if (result.failReason === 'stalled') {
+  if (result.failReason === 'stalled') {
     showVerdict('Stalled out', 'fail');
     audio.clatter();
   } else if (result.failReason === 'exploded') {

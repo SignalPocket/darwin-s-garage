@@ -11,7 +11,13 @@ import {
   reachedGoal,
   SIM_DEFAULTS,
 } from '../src/simulate.js';
-import { buildCar, hasNaNPosition, chassisOutline, wheelAnchors } from '../src/car.js';
+import {
+  buildCar,
+  hasNaNPosition,
+  chassisOutline,
+  wheelAnchors,
+  normalizeAngle,
+} from '../src/car.js';
 import { regularWheelShape } from '../src/genome.js';
 
 const track = createDefaultTrack();
@@ -61,28 +67,19 @@ test('simulateGenome never yields NaN fitness, even for junk genomes', () => {
   }
 });
 
-test('simulateGenome caps a flipped car at the distance it had when it flipped', () => {
-  // Seed 0 is a genome that reliably rolls over on the default track.
-  const result = simulateGenome(genomeFor(0), track);
-  assert.equal(result.failReason, 'flipped');
-  assert.equal(result.failed, true);
-  assert.ok(result.ticks < SIM_DEFAULTS.maxTicks, 'a flip should stop the run early');
-
-  // The cap is what stops a car being credited for ground covered after it has
-  // already rolled: allowed to keep going, the same genome travels further.
-  const uncapped = simulateGenome(genomeFor(0), track, { flipAngle: Math.PI });
+test('a flipped car continues until it stalls or reaches its tick budget', () => {
+  const result = simulateGenome(genomeFor(0), track, {
+    maxTicks: 1200,
+    stallTicks: 1e9,
+    recordFrames: true,
+  });
   assert.ok(
-    uncapped.fitness > result.fitness,
-    `flip cap should bound fitness: capped ${result.fitness}, uncapped ${uncapped.fitness}`,
+    result.frames.some((frame) => Math.abs(normalizeAngle(frame.chassis.angle)) >= (Math.PI * 2) / 3),
+    'test car should flip during its run',
   );
-});
-
-test('a lower flip threshold ends a run no later than a higher one', () => {
-  const genome = genomeFor(2);
-  const strict = simulateGenome(genome, track, { flipAngle: 0.3 });
-  const lax = simulateGenome(genome, track, { flipAngle: Math.PI });
-  assert.ok(strict.ticks <= lax.ticks);
-  assert.ok(strict.fitness <= lax.fitness + 1e-6);
+  assert.equal(result.ticks, 1200);
+  assert.equal(result.failReason, null);
+  assert.equal(result.failed, false);
 });
 
 test('simulateGenome marks a car that reaches the finish as finished', () => {
@@ -223,7 +220,7 @@ test('buildTerrain produces one static body per track segment', () => {
 
 test('a car stepped for 1000 ticks never produces NaN positions', () => {
   // Story 1.2's guarantee: the composite survives a long run intact.
-  const sim = createSimulation(genomeFor(11), track, { maxTicks: 1000, stallTicks: 1e9, flipAngle: Math.PI });
+  const sim = createSimulation(genomeFor(11), track, { maxTicks: 1000, stallTicks: 1e9 });
   sim.step(1000);
   assert.equal(hasNaNPosition(sim.car), false);
 });
@@ -257,7 +254,6 @@ const drive = (torque) =>
   simulateGenome({ ...goodCar(), wheels: goodCar().wheels.map((w) => ({ ...w, torque })) }, FLAT, {
     maxTicks: 400,
     stallTicks: 1e9,
-    flipAngle: Math.PI,
   }).fitness;
 
 test('driven wheels move the chassis forward on flat ground', () => {

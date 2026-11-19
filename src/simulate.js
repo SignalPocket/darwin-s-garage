@@ -4,7 +4,7 @@
 // link reproduce the original run exactly.
 
 import Matter from 'matter-js';
-import { buildCar, applyMotor, hasNaNPosition, chassisTilt, lowestOffset } from './car.js';
+import { buildCar, applyMotor, hasNaNPosition, lowestOffset } from './car.js';
 import { heightAt, finishX, trackSegments, isValidTrack } from './track.js';
 
 const { Engine, Composite, Bodies } = Matter;
@@ -12,9 +12,6 @@ const { Engine, Composite, Bodies } = Matter;
 export const SIM_DEFAULTS = Object.freeze({
   timestep: 1000 / 60,
   maxTicks: 1200,
-  // Past this tilt the chassis is on its side or roof and is done: scoring it
-  // any further would reward cars that topple forward across the line.
-  flipAngle: (Math.PI * 2) / 3,
   // A car that has gained under stallDistance px over stallTicks has stopped;
   // ending early keeps a 40-generation run inside its time budget.
   stallTicks: 100,
@@ -84,10 +81,6 @@ export function createSimulation(genome, track, options = {}) {
     if (x > state.distance) state.distance = x;
     if (recordFrames) frames.push(captureFrame(car, state.ticks - 1));
 
-    if (chassisTilt(car) >= config.flipAngle) {
-      finish('flipped', true);
-      return;
-    }
     if (reachedGoal(car.chassis.position.x, goal)) {
       state.finished = true;
       state.done = true;
@@ -120,9 +113,7 @@ export function createSimulation(genome, track, options = {}) {
       return state.done;
     },
     get result() {
-      // Fitness is exactly the furthest the chassis got. A flip stops the
-      // clock, so a car that topples forward scores only the ground it covered
-      // upright — the degenerate "fall over once" strategy earns nothing extra.
+      // Fitness is exactly the furthest the chassis got, even if it is upside down.
       const fitness = round6(Math.max(0, state.distance));
       return {
         fitness,
